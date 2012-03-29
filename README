@@ -1,4 +1,10 @@
 PHP-Push 2 is a fork of z-push 2 with combined backends:
-Mail: IMAP
-Calendar: CalDAV
-Contacts: LDAP
+
+Mail - IMAP
+Requirements: IMAP Server
+
+Calendar - CalDAV
+Requirements: libawl-php
+
+Contacts - LDAP
+Requirements: LDAP Server

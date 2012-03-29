@@ -1,0 +1,4 @@
+PHP-Push 2 is a fork of z-push 2 with combined backends:
+Mail: IMAP
+Calendar: CalDAV
+Contacts: LDAP

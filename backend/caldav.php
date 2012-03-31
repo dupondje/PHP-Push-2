@@ -28,9 +28,8 @@ class BackendCalDAV extends BackendDiff {
      */
     public function Logon($username, $domain, $password)
     {
-        $this->_caldav_path = CALDAV_PATH;
-        str_replace('%u', $username, $this->_caldav_path);
-        $this->caldav = new CalDAVClient(CALDAV_SERVER . $this->caldav_path, $username, $password);
+        $this->_caldav_path = str_replace('%u', $username, CALDAV_PATH);
+        $this->_caldav = new CalDAVClient(CALDAV_SERVER . $this->_caldav_path, $username, $password);
         $options = $this->_caldav->DoOptionsRequest();
         if (isset($options["PROPFIND"]))
         {
@@ -89,16 +88,13 @@ class BackendCalDAV extends BackendDiff {
         foreach ($calendars as $val)
         {
             $i++;
-            $folder = new SyncFolder();
-            $folder->parentid = "0";
-            $folder->displayname = $val->displayname;
-            $folder->serverid = "calendar" . $i;
-            $this->_calendars[$folder->serverid] = array("url" => $val->url, "type" => "calendar");
-            $folder->type = SYNC_FOLDER_TYPE_APPOINTMENT;
-            $folders[] = $folder;
-            $folder->serverid = "task" . $i;
-            $this->_calendars[$folder->serverid] = array("url" => $val->url, "type" => "task");
-            $folder->type = SYNC_FOLDER_TYPE_TASK;
+            $folder = array();
+            $id = "calendar" . $i;
+            $this->_calendars[$id] = array("url" => $val->url, "type" => "calendar");
+            $folders[] = $this->StatFolder($id);
+            $id = "task" . $i;
+            $this->_calendars[$id] = array("url" => $val->url, "type" => "task");
+            $folders[] = $this->StatFolder($id);
         }
         return $folders;
     }

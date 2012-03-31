@@ -61,6 +61,14 @@ class BackendCalDAV extends BackendDiff {
     }
     
     /*
+     * No attachments in CalDAV
+     */
+    public function GetAttachmentData($attname)
+    {
+    	return false;
+    }
+    
+    /*
      * Deletes are always permanent deletes. Messages doesn't get moved.
      */
     public function GetWasteBasket()

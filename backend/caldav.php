@@ -388,6 +388,66 @@ class BackendCalDAV extends BackendDiff {
     						break;
     				}
     				break;
+    				
+    			case "STATUS":
+    				switch ($property->Value())
+    				{
+    					case "TENTATIVE":
+    						$message->meetingstatus = "1";
+    						break;
+    					case "CONFIRMED":
+    						$message->meetingstatus = "3";
+    						break;
+    					case "CANCELLED":
+    						$message->meetingstatus = "5";
+    						break;
+    				}
+    				break;
+    				
+    			case "ATTENDEE":
+    				$att_str = str_replace(":MAILTO:", ";MAILTO=", $property->Value());
+    				$attendees = explode(";", $att_str);
+    				$attendee = new SyncAttendee();
+    				foreach ($attendees as $att)
+    				{
+    					$a = explode("=", $att);
+    					if ($a[0] == "CN")
+    					{
+    						$attendee->name = $a[1];
+    					}
+    					if ($a[0] == "MAILTO")
+    					{
+    						$attendee->email = $a[1];
+    					}
+    				}
+    				if (is_array($message->attendees))
+    				{
+    					$message->attendees[] = $attendee;
+    				}
+    				else
+    				{
+    					$message->attendees = array($attendee);
+    				}
+    				break;
+    				
+    			case "DESCRIPTION":
+    				$body = $property->Value();
+    				// truncate body, if requested
+    				if(strlen($body) > $truncsize) {
+    					$body = Utils::Utf8_truncate($body, $truncsize);
+    					$message->bodytruncated = 1;
+    				} else {
+    					$body = $body;
+    					$message->bodytruncated = 0;
+    				}
+    				$body = str_replace("\n","\r\n", str_replace("\r","",$body));
+    				$message->body = $body;
+    				break;
+    				
+    			case "CATEGORIES":
+    				$categories = explode(",", $property->Value());
+    				$message->categories = $categories;
+    				break;    			
     		}
     	}
     	

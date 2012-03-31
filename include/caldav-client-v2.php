@@ -599,8 +599,8 @@ class CalDAVClient {
   *
   * @param string $url The URL to find the principal-URL from
   */
-  function FindPrincipal( $url ) {
-    $xml = $this->DoPROPFINDRequest( $url, array('resourcetype', 'current-user-principal', 'owner', 'principal-URL',
+  function FindPrincipal() {
+    $xml = $this->DoPROPFINDRequest($this->base_url, array('resourcetype', 'current-user-principal', 'owner', 'principal-URL',
                                   'urn:ietf:params:xml:ns:caldav:calendar-home-set'), 1);
 
     $principal_url = $this->HrefForProp('DAV::principal');

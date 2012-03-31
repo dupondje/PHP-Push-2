@@ -45,6 +45,30 @@ class BackendCalDAV extends BackendDiff {
     }
     
     /*
+     * The connections to CalDAV are always directly closed. So nothing special needs to happen here.
+     */
+    public function Logoff()
+    {
+    	return true;
+    }
+    
+    /*
+     * CalDAV doesn't need to handle SendMail.
+     */
+    public function SendMail($sm)
+    {
+    	return false;
+    }
+    
+    /*
+     * Deletes are always permanent deletes. Messages doesn't get moved.
+     */
+    public function GetWasteBasket()
+    {
+    	return false;
+    }
+    
+    /*
      * Get a list of all the folders we are going to sync.
      * Each caldav calendar can contain tasks, so duplicate each calendar found.
      */

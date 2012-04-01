@@ -310,16 +310,17 @@ class BackendCalDAV extends BackendDiff {
     	$vevents = $ical->GetComponents("VTIMEZONE", false);
     	foreach ($vevents as $event)
     	{
-    		$reccurence_id = reset($event->GetProperties("RECURRENCE-ID"));
-    		if ($reccurence_id)
+    		$rec = $event->GetProperties("RECURRENCE-ID");
+    		if (count($rec) > 0)
     		{
+    			$recurrence_id = reset($rec);
     			$exception = new SyncAppointmentException();
-    			$tzid = $reccurence_id->GetParameterValue("TZID");
+    			$tzid = $recurrence_id->GetParameterValue("TZID");
     			if (!$tzid)
     			{
     				$tzid = $timezone;
     			}
-    			$exception->exceptionstarttime = $this->_MakeUTCDate($reccurence_id->Value(), $tzid);
+    			$exception->exceptionstarttime = $this->_MakeUTCDate($recurrence_id->Value(), $tzid);
     			$exception->deleted = "0";
     			$exception = $this->_ParseVEventToSyncObject($event, $exception, $truncsize);
     			$message->exception[] = $exception;
@@ -477,7 +478,10 @@ class BackendCalDAV extends BackendDiff {
     			case "CATEGORIES":
     				$categories = explode(",", $property->Value());
     				$message->categories = $categories;
-    				break;    			
+    				break;
+
+    			default:
+    				ZLog::Write(LOGLEVEL_DEBUG, sprintf("BackendCalDAV->_ParseVEventToSyncObject(): '%s' is not yet supported.", $property->Name()));
     		}
     	}
     	

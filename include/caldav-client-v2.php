@@ -179,11 +179,11 @@ class CalDAVClient {
       xml_parser_set_option ( $parser, XML_OPTION_CASE_FOLDING, 0 );
 
       if ( xml_parse_into_struct( $parser, $this->xmlResponse, $this->xmlnodes, $this->xmltags ) === 0 ) {
-        printf( "XML parsing error: %s - %s\n", xml_get_error_code($parser), xml_error_string(xml_get_error_code($parser)) );
+//        printf( "XML parsing error: %s - %s\n", xml_get_error_code($parser), xml_error_string(xml_get_error_code($parser)) );
 //        debug_print_backtrace();
 //        echo "\nNodes array............................................................\n"; print_r( $this->xmlnodes );
 //        echo "\nTags array............................................................\n";  print_r( $this->xmltags );
-        printf( "\nXML Reponse:\n%s\n", $this->xmlResponse );
+//        printf( "\nXML Reponse:\n%s\n", $this->xmlResponse );
       }
 
       xml_parser_free($parser);
@@ -400,13 +400,13 @@ class CalDAVClient {
     $etag = null;
     if ( preg_match( '{^ETag:\s+"([^"]*)"\s*$}im', $this->httpResponseHeaders, $matches ) ) $etag = $matches[1];
     if ( !isset($etag) || $etag == '' ) {
-      printf( "No etag in:\n%s\n", $this->httpResponseHeaders );
+      //printf( "No etag in:\n%s\n", $this->httpResponseHeaders );
       $save_request = $this->httpRequest;
       $save_response_headers = $this->httpResponseHeaders;
       $this->DoHEADRequest( $url );
       if ( preg_match( '{^Etag:\s+"([^"]*)"\s*$}im', $this->httpResponseHeaders, $matches ) ) $etag = $matches[1];
       if ( !isset($etag) || $etag == '' ) {
-        printf( "Still No etag in:\n%s\n", $this->httpResponseHeaders );
+        //printf( "Still No etag in:\n%s\n", $this->httpResponseHeaders );
       }
       $this->httpRequest = $save_request;
       $this->httpResponseHeaders = $save_response_headers;
@@ -534,7 +534,7 @@ class CalDAVClient {
       }
     }
     else {
-      printf( "xmltags[$tagname] or xmltags[$tagname][$i] is not set\n");
+      //printf( "xmltags[$tagname] or xmltags[$tagname][$i] is not set\n");
     }
     return null;
   }

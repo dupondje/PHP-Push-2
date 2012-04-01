@@ -615,6 +615,7 @@ class BackendCalDAV extends BackendDiff {
     
     private function _MakeUTCDate($value, $timezone = null)
     {
+    	$tz = null;
     	if ($timezone)
     	{
     		$tz = timezone_open($timezone);
@@ -625,16 +626,16 @@ class BackendCalDAV extends BackendDiff {
     		$tz = timezone_open(date_default_timezone_get());
     	}
     	//20110930T090000Z
-    	date_create_from_format('Ymd\THis\Z', $time, timezone_open("UTC"));
+    	$date = date_create_from_format('Ymd\THis\Z', $value, timezone_open("UTC"));
     	if (!$date)
     	{
     		//20110930T090000
-    		$date = date_create_from_format('Ymd\THis', $timestr, $tz);
+    		$date = date_create_from_format('Ymd\THis', $value, $tz);
     	}
     	if (!$date)
     	{
     		//20110930
-    		$date = date_create_from_format('Ymd', $timestr, $tz);
+    		$date = date_create_from_format('Ymd', $value, $tz);
     	}
     	return date_timestamp_get($date);
     }

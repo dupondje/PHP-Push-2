@@ -321,18 +321,18 @@ class BackendCalDAV extends BackendDiff {
     			}
     			$exception->exceptionstarttime = $this->_MakeUTCDate($reccurence_id->Value(), $tzid);
     			$exception->deleted = "0";
-    			$this->_ParseVEventToSyncObject($event, $exception, $truncsize);
+    			$exception = $this->_ParseVEventToSyncObject($event, $exception, $truncsize);
     			$message->exception[] = $exception;
     		}
     		else
     		{
-    			$this->_ParseVEventToSyncObject($event, $message, $truncsize);
+    			$message = $this->_ParseVEventToSyncObject($event, $message, $truncsize);
     		}
     	}
     	return $message;
     }
     
-    private function _ParseVEventToSyncObject($event, &$message, $truncsize)
+    private function _ParseVEventToSyncObject($event, $message, $truncsize)
     {
     	$properties = $event->GetProperties();
     	foreach ($properties as $property)
@@ -498,6 +498,8 @@ class BackendCalDAV extends BackendDiff {
     			}
     		}
     	}
+    	
+    	return $message;
     }
     
     private function _ParseRecurrence($rrules)
@@ -593,6 +595,7 @@ class BackendCalDAV extends BackendDiff {
     				ZLog::Write(LOGLEVEL_DEBUG, sprintf("BackendCalDAV->_ParseRecurrence(): '%s' is not yet supported.", $rule[0]));
     		}
     	}
+    	return $recurrence;
     }
 
     //TODO: Implement

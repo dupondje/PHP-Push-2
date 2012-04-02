@@ -605,23 +605,29 @@ class BackendCalDAV extends BackendDiff {
     	$ical->AddProperty("CALSCALE", "GREGORIAN");
     	$ical->AddProperty("VERSION", "2.0");
     	
+    	$vevent = new iCalComponent();
+    	$vevent->SetType("VEVENT");
+
     	if ($data->dtstamp)
     	{
-    		$ical->AddProperty("DTSTAMP", $data->dtstamp);
-    		$ical->AddProperty("LAST-MODIFIED", $data->dtstamp);
+    		$vevent->AddProperty("DTSTAMP", $data->dtstamp);
+    		$vevent->AddProperty("LAST-MODIFIED", $data->dtstamp);
     	}
     	if ($data->starttime)
     	{
-    		$ical->AddProperty("DTSTART", $data->starttime);
+    		$vevent->AddProperty("DTSTART", $data->starttime);
     	}
     	if ($data->endtime)
     	{
-    		$ical->AddProperty("DTEND", $data->endtime);
+    		$vevent->AddProperty("DTEND", $data->endtime);
     	}
     	if ($data->subject)
     	{
-    		$ical->AddProperty("SUMMARY", $data->subject);
+    		$vevent->AddProperty("SUMMARY", $data->subject);
     	}
+    	
+    	$ical->AddComponent($vevent);
+    	
     	return $ical->Render();
     }
 

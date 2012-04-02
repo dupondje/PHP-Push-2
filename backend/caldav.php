@@ -80,28 +80,17 @@ class BackendCalDAV extends BackendDiff {
     public function GetFolderList()
     {
         ZLog::Write(LOGLEVEL_DEBUG, sprintf("BackendCalDAV->GetFolderList(): Getting all folders."));
-        /*
-        $i = 0;
         $folders = array();
         $calendars = $this->_caldav->FindCalendars();
         foreach ($calendars as $val)
         {
-            $i++;
             $folder = array();
-            $id = "calendar" . $i;
-            $this->_calendars[$id] = array("url" => $val->url, "type" => "calendar");
+            $folderid = array_pop(explode("/", $val->url, -1));
+            $id = "C" . $folderid;
             $folders[] = $this->StatFolder($id);
-            $id = "task" . $i;
-            $this->_calendars[$id] = array("url" => $val->url, "type" => "task");
+            $id = "T" . $folderid;
             $folders[] = $this->StatFolder($id);
         }
-        */
-        //Use static folders for now.
-        $folders = array();
-        $id = "calendar";
-        $folders[] = $this->StatFolder($id);
-        $id = "tasks";
-        $folders[] = $this->StatFolder($id);
         return $folders;
     }
     
@@ -111,12 +100,12 @@ class BackendCalDAV extends BackendDiff {
     public function GetFolder($id)
     {
         ZLog::Write(LOGLEVEL_DEBUG, sprintf("BackendCalDAV->GetFolder('%s')", $id));
-        $val = $this->_caldav->GetCalendarDetails($this->_caldav_path);
+        $val = $this->_caldav->GetCalendarDetails($this->_caldav_path . substr($id, 1) .  "/");
         $folder = new SyncFolder();
         $folder->parentid = "0";
         $folder->displayname = $val->displayname;
         $folder->serverid = $id;
-        if ($id == "calendar")
+        if ($id[0] == "C")
         {
             $folder->type = SYNC_FOLDER_TYPE_APPOINTMENT;
         }
@@ -171,13 +160,14 @@ class BackendCalDAV extends BackendDiff {
         $diff = time() - $cutoffdate;
         $finish = date("Ymd\THis\Z", 2147483647);
         
-        if ($folderid == "calendar")
+        $path = $this->_caldav_path . substr($folderid, 1) . "/";
+        if ($folderid[0] == "C")
         {
-            $msgs = $this->_caldav->GetEvents($begin, $finish);
+            $msgs = $this->_caldav->GetEvents($begin, $finish, $path);
         }
         else
         {
-            $msgs = $this->_caldav->GetTodos($begin, $finish);
+            $msgs = $this->_caldav->GetTodos($begin, $finish, $path);
         }
 
         $messages = array();
@@ -198,13 +188,13 @@ class BackendCalDAV extends BackendDiff {
         ZLog::Write(LOGLEVEL_DEBUG, sprintf("BackendCalDAV->GetMessage('%s','%s')", $folderid,  $id));
         $data = $this->_collection[$id]['data'];
         
-        if ($folderid == "calendar")
+        if ($folderid[0] == "C")
         {
             return $this->_ParseVEventToAS($data, $contentparameters);
         }
-        if ($folderid == "tasks")
+        if ($folderid[0] == "T")
         {
-            return $this->_ParseVEventToAS($data, $contentparameters);
+            return $this->_ParseVTodoToAS($data, $contentparameters);
         }
         return false;
     }
@@ -230,12 +220,11 @@ class BackendCalDAV extends BackendDiff {
     {
         ZLog::Write(LOGLEVEL_DEBUG, sprintf("BackendCalDAV->ChangeMessage('%s','%s')", $folderid,  $id));
 
-        $type = $this->_calendars[$folderid]["type"];
-        if ($type == "calendar")
+        if ($folderid[0] == "C")
         {
             $data = $this->_ParseExEventToVEvent($message);
         }
-        if ($type == "tasks")
+        if ($folderid[0] == "T")
         {
             $data = $this->_ParseExTaskToVTodo($message);
         }
@@ -249,7 +238,7 @@ class BackendCalDAV extends BackendDiff {
         {
             $etag = "*";
         }
-        $base_url = $this->_calendars[$id]["url"];
+        $base_url = $this->_caldav_path . substr($folderid, 1) . "/";
         $etag_new = $this->_caldav->DoPUTRequest($base_url.$id, $data, $etag);
 
         $item = array();

@@ -506,10 +506,10 @@ class BackendCalDAV extends BackendDiff {
     	return $message;
     }
     
-    private function _ParseRecurrence($rrules)
+    private function _ParseRecurrence($rrulestr)
     {
     	$recurrence = new SyncRecurrence();
-    	$rrules = explode(";", $rrule);
+    	$rrules = explode(";", $rrulestr);
     	foreach ($rrules as $rrule)
     	{
     		$rule = explode("=", $rrule);

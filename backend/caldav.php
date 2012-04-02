@@ -335,6 +335,9 @@ class BackendCalDAV extends BackendDiff {
     
     private function _ParseVEventToSyncObject($event, $message, $truncsize)
     {
+    	//Defaults
+    	$message->busystatus = "2";
+    	
     	$properties = $event->GetProperties();
     	foreach ($properties as $property)
     	{

@@ -222,11 +222,11 @@ class BackendCalDAV extends BackendDiff {
 
         if ($folderid[0] == "C")
         {
-            $data = $this->_ParseExEventToVEvent($message);
+            $data = $this->_ParseASEventToVEvent($message);
         }
         if ($folderid[0] == "T")
         {
-            $data = $this->_ParseExTaskToVTodo($message);
+            $data = $this->_ParseASTaskToVTodo($message);
         }
         
         if ($id)

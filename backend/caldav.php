@@ -237,6 +237,9 @@ class BackendCalDAV extends BackendDiff {
         else
         {
             $etag = "*";
+            $date = gmdate("Ymd\THis\Z");
+            $random = hash("md5", microtime());
+            $id = $date . "-" . $random . ".ics";
         }
         $base_url = $this->_caldav_path . substr($folderid, 1) . "/";
         $etag_new = $this->_caldav->DoPUTRequest($base_url.$id, $data, $etag);
@@ -594,9 +597,32 @@ class BackendCalDAV extends BackendDiff {
     	return $recurrence;
     }
 
-    //TODO: Implement
     private function _ParseASEventToVEvent($data)
     {
+    	$ical = new iCalComponent();
+    	$ical->SetType("VCALENDAR");
+    	$ical->AddProperty("PRODID", "-//php-push//NONSGML PHP-Push Calendar//EN");
+    	$ical->AddProperty("CALSCALE", "GREGORIAN");
+    	$ical->AddProperty("VERSION", "2.0");
+    	
+    	if ($data->dtstamp)
+    	{
+    		$ical->AddProperty("DTSTAMP", $data->dtstamp);
+    		$ical->AddProperty("LAST-MODIFIED", $data->dtstamp);
+    	}
+    	if ($data->starttime)
+    	{
+    		$ical->AddProperty("DTSTART", $data->starttime);
+    	}
+    	if ($data->endtime)
+    	{
+    		$ical->AddProperty("DTEND", $data->endtime);
+    	}
+    	if ($data->subject)
+    	{
+    		$ical->AddProperty("SUMMARY", $data->subject);
+    	}
+    	return $ical->Render();
     }
 
     //TODO: Implement

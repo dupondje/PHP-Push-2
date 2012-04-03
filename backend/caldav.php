@@ -607,9 +607,9 @@ class BackendCalDAV extends BackendDiff {
     {
     	$ical = new iCalComponent();
     	$ical->SetType("VCALENDAR");
+    	$ical->AddProperty("VERSION", "2.0");
     	$ical->AddProperty("PRODID", "-//php-push//NONSGML PHP-Push Calendar//EN");
     	$ical->AddProperty("CALSCALE", "GREGORIAN");
-    	$ical->AddProperty("VERSION", "2.0");
     	
     	if ($folderid[0] == "C")
     	{
@@ -641,12 +641,12 @@ class BackendCalDAV extends BackendDiff {
 
     	if ($data->dtstamp)
     	{
-    		$vevent->AddProperty("DTSTAMP", $data->dtstamp);
-    		$vevent->AddProperty("LAST-MODIFIED", $data->dtstamp);
+    		$vevent->AddProperty("DTSTAMP", gmdate("Ymd\THis\Z", $data->dtstamp));
+    		$vevent->AddProperty("LAST-MODIFIED", gmdate("Ymd\THis\Z", $data->dtstamp));
     	}
     	if ($data->starttime)
     	{
-    		$vevent->AddProperty("DTSTART", $data->starttime);
+    		$vevent->AddProperty("DTSTART", gmdate("Ymd\THis\Z", $data->starttime));
     	}
     	if ($data->subject)
     	{
@@ -669,7 +669,7 @@ class BackendCalDAV extends BackendDiff {
     	}
     	if ($data->endtime)
     	{
-    		$vevent->AddProperty("DTEND", $data->endtime);
+    		$vevent->AddProperty("DTEND", gmdate("Ymd\THis\Z", $data->endtime));
     	}
     	if ($data->recurrence)
     	{

@@ -212,7 +212,8 @@ class BackendCalDAV extends BackendDiff {
         }
         else
         {
-        	$e = $this->_caldav->GetEntryByUid(substr($id, 0, strlen($id)-4));
+        	$path = $this->_caldav_path . substr($folderid, 1) . "/";
+        	$e = $this->_caldav->GetEntryByUid(substr($id, 0, strlen($id)-4), $path);
         	if ($e == null && count($e) <= 0)
         		return;
         	$data = $e[0];

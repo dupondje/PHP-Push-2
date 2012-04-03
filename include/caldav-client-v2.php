@@ -120,7 +120,7 @@ class CalDAVClient {
   * @param string $etag The etag to match / not match against.
   */
   function SetMatch( $match, $etag = '*' ) {
-    $this->headers['match'] = sprintf( "%s-Match: %s", ($match ? "If" : "If-None"), $etag);
+    $this->headers['match'] = sprintf( "%s-Match: \"%s\"", ($match ? "If" : "If-None"), $etag);
   }
 
   /**

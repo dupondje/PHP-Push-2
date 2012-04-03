@@ -76,6 +76,8 @@ class CalDAVClient {
   protected $requestMethod = "GET";
   protected $httpRequest = "";  // for debugging http headers sent
   protected $xmlRequest = "";   // for debugging xml sent
+  protected $httpResponseHeaders = "";
+  protected $httpResponseBody = "";
   protected $httpResponse = ""; // http headers received
   protected $xmlResponse = "";  // xml received
 
@@ -431,7 +433,7 @@ class CalDAVClient {
       $this->SetMatch( true, $etag );
     }
     $this->DoRequest($url);
-    $headers = $this->httpResponse;
+    $headers = $this->httpResponseHeaders;
     if (preg_match('/HTTP\/\d\.\d (\d{3})/', $headers, $status))
     	return $status[1];
     return false;

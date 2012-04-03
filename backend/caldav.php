@@ -219,16 +219,7 @@ class BackendCalDAV extends BackendDiff {
     public function ChangeMessage($folderid, $id, $message)
     {
         ZLog::Write(LOGLEVEL_DEBUG, sprintf("BackendCalDAV->ChangeMessage('%s','%s')", $folderid,  $id));
-
-        if ($folderid[0] == "C")
-        {
-            $data = $this->_ParseASEventToVEvent($message);
-        }
-        if ($folderid[0] == "T")
-        {
-            $data = $this->_ParseASTaskToVTodo($message);
-        }
-        
+               
         if ($id)
         {
         	$mod = $this->StatMessage($folderid, $id);
@@ -239,10 +230,13 @@ class BackendCalDAV extends BackendDiff {
             $etag = "*";
             $date = gmdate("Ymd\THis\Z");
             $random = hash("md5", microtime());
-            $id = $date . "-" . $random . ".ics";
+            $id = $date . "-" . $random;
         }
-        $base_url = $this->_caldav_path . substr($folderid, 1) . "/";
-        $etag_new = $this->_caldav->DoPUTRequest($base_url.$id, $data, $etag);
+        
+       	$data = $this->_ParseASEventToVCalendar($message, $folderid, $id);
+       	
+        $url = $this->_caldav_path . substr($folderid, 1) . "/" . $id . ".ics";
+        $etag_new = $this->_caldav->DoPUTRequest($url, $data, $etag);
 
         $item = array();
         $item['href'] = $id;
@@ -597,7 +591,7 @@ class BackendCalDAV extends BackendDiff {
     	return $recurrence;
     }
 
-    private function _ParseASEventToVEvent($data)
+    private function _ParseASEventToVCalendar($data, $folderid, $id)
     {
     	$ical = new iCalComponent();
     	$ical->SetType("VCALENDAR");
@@ -605,6 +599,30 @@ class BackendCalDAV extends BackendDiff {
     	$ical->AddProperty("CALSCALE", "GREGORIAN");
     	$ical->AddProperty("VERSION", "2.0");
     	
+    	if ($folderid[0] == "C")
+    	{
+    		$vevent = $this->_ParseASEventToVEvent($data, $id);
+    		$vevent->AddProperty("UID", $id);
+    		if (is_array($data->exceptions))
+    		{
+    			foreach ($data->exceptions as $ex)
+    			{
+    				$exception = $this->_ParseASEventToVEvent($ex, $id);
+    				$vevent->AddComponent($exception);
+    			}
+    		}
+    		$ical->AddComponent($vevent);
+    	}
+    	if ($folderid[0] == "T")
+    	{
+    		//TODO: Implement
+    	}
+    	
+    	return $ical->Render();
+    }
+    
+    private function _ParseASEventToVEvent($data, $id)
+    {
     	$vevent = new iCalComponent();
     	$vevent->SetType("VEVENT");
 
@@ -617,18 +635,179 @@ class BackendCalDAV extends BackendDiff {
     	{
     		$vevent->AddProperty("DTSTART", $data->starttime);
     	}
-    	if ($data->endtime)
-    	{
-    		$vevent->AddProperty("DTEND", $data->endtime);
-    	}
     	if ($data->subject)
     	{
     		$vevent->AddProperty("SUMMARY", $data->subject);
     	}
+    	if ($data->organizername)
+    	{
+    		if ($data->organizeremail)
+    		{
+    			$vevent->AddProperty("ORGANIZER", sprintf("CN=%s:MAILTO:%s", $data->organizername, $data->organizeremail));
+    		}
+    		else
+    		{
+    			$vevent->AddProperty("ORGANIZER", sprintf("CN=%s", $data->organizername));
+    		}
+    	}
+    	if ($data->location)
+    	{
+    		$vevent->AddProperty("LOCATION", $data->location);
+    	}
+    	if ($data->endtime)
+    	{
+    		$vevent->AddProperty("DTEND", $data->endtime);
+    	}
+    	if ($data->recurrence)
+    	{
+    		$vevent->AddProperty("RRULE", $this->_GenerateRRule($data->recurrence));
+    	}
+    	if ($data->sensitivity)
+    	{
+    		switch ($data->sensitivity)
+    		{
+    			case "0":
+    				$vevent->AddProperty("CLASS", "PUBLIC");
+    				break;
+    			case "2":
+    				$vevent->AddProperty("CLASS", "PRIVATE");
+    				break;
+    			case "3":
+    				$vevent->AddProperty("CLASS", "CONFIDENTIAL");
+    				break;
+    		}
+    	}
+    	if ($data->busystatus)
+    	{
+    		switch ($data->busystatus)
+    		{
+    			case "0":
+    				$vevent->AddProperty("TRANSP", "TRANSPARENT");
+    				break;
+    			case "2":
+    				$vevent->AddProperty("TRANSP", "OPAQUE");
+    				break;
+    		}
+    	}
+    	if ($data->reminder)
+    	{
+    		$valarm = new iCalComponent();
+    		$valarm->SetType("VALARM");
+    		$trigger = "-PT0H" . $data->reminder . "M0S";
+    		$valarm->AddProperty("TRIGGER", $trigger);
+    	}
+    	if ($data->meetingstatus)
+    	{
+    		switch ($data->meetingstatus)
+    		{
+    			case "1":
+    				$vevent->AddProperty("STATUS", "TENTATIVE");
+    				break;
+    			case "3":
+    				$vevent->AddProperty("STATUS", "CONFIRMED");
+    				break;
+    			case "5":
+    				$vevent->AddProperty("STATUS", "CANCELLED");
+    				break;
+    		}
+    	}
+    	if (is_array($data->attendees))
+    	{
+    		foreach ($data->attendees as $att)
+    		{
+    			$att_str = sprinf("CN=%s:MAILTO:%s", $att->name, $att->email);
+    			$vevent->AddProperty("ATTENDEE", $att_str);
+    		}
+    	}
+    	if ($data->body)
+    	{
+    		$vevent->AddProperty("DESCRIPTION", $data->body);
+    	}
+    	if (is_array($data->categories))
+    	{
+    		$vevent->AddProperty("CATEGORIES", implode(",", $data->categories));
+    	}
     	
-    	$ical->AddComponent($vevent);
-    	
-    	return $ical->Render();
+    	return $vevent;
+    }
+    
+    private function _GenerateRRule($rec)
+    {
+    	$rrule = array();
+    	if ($rec->type)
+    	{
+    		$freq = "";
+    		switch ($rec->type)
+    		{
+    			case "0":
+    				$freq = "DAILY";
+    				break;
+    			case "1":
+    				$freq = "WEEKLY";
+    				break;
+    			case "2":
+    				$freq = "MONTHLY";
+    				break;
+    			case "5":
+    				$freq = "YEARLY";
+    				break;
+    		}
+    		$rrule[] = "FREQ=" . $freq;
+    	}
+    	if ($rec->until)
+    	{
+    		$rrule[] = "UNTIL=" . $rec->until;
+    	}
+    	if ($rec->occurrences)
+    	{
+    		$rrule[] = "COUNT=" . $rec->occurrences;
+    	}
+    	if ($rec->interval)
+    	{
+    		$rrule[] = "INTERVAL=" . $rec->interval;
+    	}
+    	if ($rec->dayofweek)
+    	{
+    		$days = array();
+    		if (($val & 1) == 1)
+    		{
+    			$days[] = "SU";
+    		}
+    		if (($val & 2) == 2)
+    		{
+    			$days[] = "MO";
+    		}
+    		if (($val & 4) == 4)
+    		{
+    			$days[] = "TU";
+    		}
+    		if (($val & 8) == 8)
+    		{
+    			$days[] = "WE";
+    		}
+    		if (($val & 16) == 16)
+    		{
+    			$days[] = "TH";
+    		}
+    		if (($val & 32) == 32)
+    		{
+    			$days[] = "FR";
+    		}
+    		if (($val & 64) == 64)
+    		{
+    			$days[] = "SA";
+    		}
+    		$rrule[] = "BYDAY=" . implode(",", $days);
+    	}
+    	if ($rec->dayofmonth)
+    	{
+    		$rrule[] = "BYMONTHDAY=" . $rec->dayofmonth;
+    	}
+    	if ($rec->monthofyear)
+    	{
+    		$rrule[] = "BYMONTH=" . $rec->monthofyear;
+    	}
+    	return implode(";", $rrule);
     }
 
     //TODO: Implement
@@ -637,7 +816,7 @@ class BackendCalDAV extends BackendDiff {
     }
 
     //TODO: Implement
-    private function _ParseASTaskToVTodo($data)
+    private function _ParseASTaskToVTodo($data, $id)
     {
     }
     

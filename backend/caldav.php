@@ -273,7 +273,8 @@ class BackendCalDAV extends BackendDiff {
 	public function DeleteMessage($folderid, $id)
 	{
 		ZLog::Write(LOGLEVEL_DEBUG, sprintf("BackendCalDAV->DeleteMessage('%s','%s')", $folderid,  $id));
-		$http_status_code = $this->_caldav->DoDELETERequest($id);
+		$url = $this->_caldav_path . substr($folderid, 1) . "/" . $id;
+		$http_status_code = $this->_caldav->DoDELETERequest($url);
 		if ($http_status_code == "204") {
 			return true;
 		}

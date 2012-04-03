@@ -695,9 +695,11 @@ class BackendCalDAV extends BackendDiff {
     		switch ($data->busystatus)
     		{
     			case "0":
+    			case "1":
     				$vevent->AddProperty("TRANSP", "TRANSPARENT");
     				break;
     			case "2":
+    			case "3":
     				$vevent->AddProperty("TRANSP", "OPAQUE");
     				break;
     		}
@@ -720,6 +722,7 @@ class BackendCalDAV extends BackendDiff {
     				$vevent->AddProperty("STATUS", "CONFIRMED");
     				break;
     			case "5":
+    			case "7":
     				$vevent->AddProperty("STATUS", "CANCELLED");
     				break;
     		}

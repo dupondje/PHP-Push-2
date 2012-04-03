@@ -614,9 +614,9 @@ class BackendCalDAV extends BackendDiff {
     	{
     		$vevent = $this->_ParseASEventToVEvent($data, $id);
     		$vevent->AddProperty("UID", $id);
-    		if (is_array($data->exceptions))
+    		if (is_array($data->exception))
     		{
-    			foreach ($data->exceptions as $ex)
+    			foreach ($data->exception as $ex)
     			{
     				$exception = $this->_ParseASEventToVEvent($ex, $id);
     				$exception->AddProperty("RECURRENCE-ID", $ex->exceptionstarttime);

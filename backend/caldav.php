@@ -205,7 +205,18 @@ class BackendCalDAV extends BackendDiff {
     public function StatMessage($folderid, $id)
     {
         ZLog::Write(LOGLEVEL_DEBUG, sprintf("BackendCalDAV->StatMessage('%s','%s')", $folderid,  $id));
-        $data = $this->_collection[$id];
+        $data = null;
+        if (array_key_exists($id, $this->_collection))
+        {
+        	$data = $this->_collection[$id];
+        }
+        else
+        {
+        	$e = $this->_caldav->GetEntryByUid(substr($id, 0, strlen($id)-4));
+        	if ($e == null && count($e) <= 0)
+        		return;
+        	$data = $e[0];
+        }
         $message = array();
         $message['id'] = $data['href'];
         $message['flags'] = "1";

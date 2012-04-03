@@ -661,7 +661,7 @@ class BackendCalDAV extends BackendDiff {
     	}
     	if ($data->recurrence)
     	{
-    		$vevent->AddProperty("RRULE", $this->_GenerateRRule($data->recurrence));
+    		$vevent->AddProperty("RRULE", $this->_GenerateRecurrence($data->recurrence));
     	}
     	if ($data->sensitivity)
     	{
@@ -732,7 +732,7 @@ class BackendCalDAV extends BackendDiff {
     	return $vevent;
     }
     
-    private function _GenerateRRule($rec)
+    private function _GenerateRecurrence($rec)
     {
     	$rrule = array();
     	if ($rec->type)

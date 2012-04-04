@@ -256,12 +256,12 @@ class BackendCalDAV extends BackendDiff {
 			$etag = "*";
 			$date = gmdate("Ymd\THis\Z");
 			$random = hash("md5", microtime());
-			$id = $date . "-" . $random;
+			$id = $date . "-" . $random . ".ics";
 		}
 
-		$data = $this->_ParseASEventToVCalendar($message, $folderid, $id);
+		$data = $this->_ParseASEventToVCalendar($message, $folderid, substr($id, 0, strlen($id)-4));
 
-		$url = $this->_caldav_path . substr($folderid, 1) . "/" . $id . ".ics";
+		$url = $this->_caldav_path . substr($folderid, 1) . "/" . $id;
 		$etag_new = $this->_caldav->DoPUTRequest($url, $data, $etag);
 
 		$item = array();

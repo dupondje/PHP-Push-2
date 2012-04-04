@@ -1,6 +1,6 @@
 <?php
 /***********************************************
- * File      :   caldav.php
+* File      :   caldav.php
 * Project   :   PHP-Push
 * Descr     :   This backend is based on
 *               'BackendDiff' and implements an
@@ -21,9 +21,10 @@ class BackendCalDAV extends BackendDiff {
 	private $_caldav_path;
 	private $_collection = array();
 
-	/*
-	 * Logon to the CalDAV Server
-	*/
+	/**
+	 * Login to the CalDAV backend
+	 * @see IBackend::Logon()
+	 */
 	public function Logon($username, $domain, $password)
 	{
 		$this->_caldav_path = str_replace('%u', $username, CALDAV_PATH);
@@ -41,42 +42,47 @@ class BackendCalDAV extends BackendDiff {
 		}
 	}
 
-	/*
+	/**
 	 * The connections to CalDAV are always directly closed. So nothing special needs to happen here.
-	*/
+	 * @see IBackend::Logoff()
+	 */
 	public function Logoff()
 	{
 		return true;
 	}
 
-	/*
-	 * CalDAV doesn't need to handle SendMail.
-	*/
+	/**
+	 * CalDAV doesn't need to handle SendMail
+	 * @see IBackend::SendMail()
+	 */
 	public function SendMail($sm)
 	{
 		return false;
 	}
 
-	/*
+	/**
 	 * No attachments in CalDAV
-	*/
+	 * @see IBackend::GetAttachmentData()
+	 */
 	public function GetAttachmentData($attname)
 	{
 		return false;
 	}
 
-	/*
+	/**
 	 * Deletes are always permanent deletes. Messages doesn't get moved.
-	*/
+	 * @see IBackend::GetWasteBasket()
+	 */
 	public function GetWasteBasket()
 	{
 		return false;
 	}
 
-	/*
+	/**
 	 * Get a list of all the folders we are going to sync.
-	* Each caldav calendar can contain tasks, so duplicate each calendar found.
-	*/
+	 * Each caldav calendar can contain tasks (prefix T) and events (prefix C), so duplicate each calendar found.
+	 * @see BackendDiff::GetFolderList()
+	 */
 	public function GetFolderList()
 	{
 		ZLog::Write(LOGLEVEL_DEBUG, sprintf("BackendCalDAV->GetFolderList(): Getting all folders."));
@@ -94,9 +100,10 @@ class BackendCalDAV extends BackendDiff {
 		return $folders;
 	}
 
-	/*
-	 * return folder type
-	*/
+	/**
+	 * Returning a SyncFolder
+	 * @see BackendDiff::GetFolder()
+	 */
 	public function GetFolder($id)
 	{
 		ZLog::Write(LOGLEVEL_DEBUG, sprintf("BackendCalDAV->GetFolder('%s')", $id));
@@ -115,10 +122,11 @@ class BackendCalDAV extends BackendDiff {
 		}
 		return $folder;
 	}
-
-	/*
-	 * return folder information
-	*/
+	
+	/**
+	 * Returns information on the folder.
+	 * @see BackendDiff::StatFolder()
+	 */
 	public function StatFolder($id)
 	{
 		ZLog::Write(LOGLEVEL_DEBUG, sprintf("BackendCalDAV->StatFolder('%s')", $id));
@@ -130,27 +138,30 @@ class BackendCalDAV extends BackendDiff {
 		return $folder;
 	}
 
-	/*
+	/**
 	 * ChangeFolder is not supported under CalDAV
-	*/
+	 * @see BackendDiff::ChangeFolder()
+	 */
 	public function ChangeFolder($folderid, $oldid, $displayname, $type)
 	{
 		ZLog::Write(LOGLEVEL_DEBUG, sprintf("BackendCalDAV->ChangeFolder('%s','%s','%s','%s')", $folderid, $oldid, $displayname, $type));
 		return false;
 	}
 
-	/*
+	/**
 	 * DeleteFolder is not supported under CalDAV
-	*/
+	 * @see BackendDiff::DeleteFolder()
+	 */
 	public function DeleteFolder($id, $parentid)
 	{
 		ZLog::Write(LOGLEVEL_DEBUG, sprintf("BackendCalDAV->DeleteFolder('%s','%s')", $id, $parentid));
 		return false;
 	}
 
-	/*
-	 * Get a list of all the messages
-	*/
+	/**
+	 * Get a list of all the messages.
+	 * @see BackendDiff::GetMessageList()
+	 */
 	public function GetMessageList($folderid, $cutoffdate)
 	{
 		ZLog::Write(LOGLEVEL_DEBUG, sprintf("BackendCalDAV->GetMessageList('%s','%s')", $folderid, $cutoffdate));
@@ -180,9 +191,10 @@ class BackendCalDAV extends BackendDiff {
 		return $messages;
 	}
 
-	/*
-	 * Get a SyncObject by id
-	*/
+	/**
+	 * Get a SyncObject by its ID
+	 * @see BackendDiff::GetMessage()
+	 */
 	public function GetMessage($folderid, $id, $contentparameters)
 	{
 		ZLog::Write(LOGLEVEL_DEBUG, sprintf("BackendCalDAV->GetMessage('%s','%s')", $folderid,  $id));
@@ -199,9 +211,10 @@ class BackendCalDAV extends BackendDiff {
 		return false;
 	}
 
-	/*
+	/**
 	 * Return id, flags and mod of a messageid
-	*/
+	 * @see BackendDiff::StatMessage()
+	 */
 	public function StatMessage($folderid, $id)
 	{
 		ZLog::Write(LOGLEVEL_DEBUG, sprintf("BackendCalDAV->StatMessage('%s','%s')", $folderid,  $id));
@@ -225,9 +238,10 @@ class BackendCalDAV extends BackendDiff {
 		return $message;
 	}
 
-	/*
-	 * Change a message received from your phone/pda on the server
-	*/
+	/**
+	 * Change/Add a message with contents received from ActiveSync
+	 * @see BackendDiff::ChangeMessage()
+	 */
 	public function ChangeMessage($folderid, $id, $message)
 	{
 		ZLog::Write(LOGLEVEL_DEBUG, sprintf("BackendCalDAV->ChangeMessage('%s','%s')", $folderid,  $id));
@@ -259,17 +273,19 @@ class BackendCalDAV extends BackendDiff {
 		return $this->StatMessage($folderid, $id);
 	}
 
-	/*
-	 * Change the read flag is not supported
-	*/
+	/**
+	 * Change the read flag is not supported.
+	 * @see BackendDiff::SetReadFlag()
+	 */
 	public function SetReadFlag($folderid, $id, $flags)
 	{
 		return false;
 	}
 
-	/*
-	 * Delete a message from the CalDAV server
-	*/
+	/**
+	 * Delete a message from the CalDAV server.
+	 * @see BackendDiff::DeleteMessage()
+	 */
 	public function DeleteMessage($folderid, $id)
 	{
 		ZLog::Write(LOGLEVEL_DEBUG, sprintf("BackendCalDAV->DeleteMessage('%s','%s')", $folderid,  $id));
@@ -281,17 +297,21 @@ class BackendCalDAV extends BackendDiff {
 		return false;
 	}
 
-	/*
-	 * Move a message is not supported
-	*/
+	/**
+	 * Move a message is not supported by CalDAV.
+	 * @see BackendDiff::MoveMessage()
+	 */
 	public function MoveMessage($folderid, $id, $newfolderid)
 	{
 		return false;
 	}
 
-	/*
+	/**
 	 * Convert a iCAL VEvent to ActiveSync format
-	*/
+	 * @param ical_vevent $data
+	 * @param ContentParameters $contentparameters
+	 * @return SyncAppointment
+	 */
 	private function _ParseVEventToAS($data, $contentparameters)
 	{
 		ZLog::Write(LOGLEVEL_DEBUG, sprintf("BackendCalDAV->_ParseVEventToAS(): Parsing VEvent"));
@@ -332,6 +352,12 @@ class BackendCalDAV extends BackendDiff {
 		return $message;
 	}
 
+	/**
+	 * Parse 1 VEvent
+	 * @param ical_vevent $event
+	 * @param SyncAppointment(Exception) $message
+	 * @param int $truncsize
+	 */
 	private function _ParseVEventToSyncObject($event, $message, $truncsize)
 	{
 		//Defaults
@@ -508,6 +534,10 @@ class BackendCalDAV extends BackendDiff {
 		return $message;
 	}
 
+	/**
+	 * Parse a RRULE
+	 * @param string $rrulestr
+	 */
 	private function _ParseRecurrence($rrulestr)
 	{
 		$recurrence = new SyncRecurrence();
@@ -604,6 +634,12 @@ class BackendCalDAV extends BackendDiff {
 		return $recurrence;
 	}
 
+	/**
+	 * Generate a iCAL VCalendar from ActiveSync object.
+	 * @param string $data
+	 * @param string $folderid
+	 * @param string $id
+	 */
 	private function _ParseASEventToVCalendar($data, $folderid, $id)
 	{
 		$ical = new iCalComponent();
@@ -635,6 +671,12 @@ class BackendCalDAV extends BackendDiff {
 		return $ical->Render();
 	}
 
+	/**
+	 * Generate a VEVENT from a SyncAppointment(Exception).
+	 * @param string $data
+	 * @param string $id
+	 * @return iCalComponent
+	 */
 	private function _ParseASEventToVEvent($data, $id)
 	{
 		$vevent = new iCalComponent();
@@ -748,6 +790,10 @@ class BackendCalDAV extends BackendDiff {
 		return $vevent;
 	}
 
+	/**
+	 * Generate Recurrence
+	 * @param string $rec
+	 */
 	private function _GenerateRecurrence($rec)
 	{
 		$rrule = array();
@@ -837,6 +883,11 @@ class BackendCalDAV extends BackendDiff {
 	{
 	}
 
+	/**
+	 * Generate date object from string and timezone.
+	 * @param string $value
+	 * @param string $timezone
+	 */
 	private function _MakeUTCDate($value, $timezone = null)
 	{
 		$tz = null;
@@ -864,6 +915,12 @@ class BackendCalDAV extends BackendDiff {
 		return date_timestamp_get($date);
 	}
 
+	/**
+	 * Generate ActiveSync Timezone Packed String.
+	 * @param string $timezone
+	 * @param string $with_names
+	 * @throws Exception
+	 */
 	private function _GetTimezoneString($timezone, $with_names = true)
 	{
 		// UTC needs special handling

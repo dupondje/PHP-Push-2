@@ -91,11 +91,15 @@ class BackendCalDAV extends BackendDiff {
 		foreach ($calendars as $val)
 		{
 			$folder = array();
-			$folderid = array_pop(explode("/", $val->url, -1));
-			$id = "C" . $folderid;
-			$folders[] = $this->StatFolder($id);
-			$id = "T" . $folderid;
-			$folders[] = $this->StatFolder($id);
+			$fpath = explode("/", $val->url, -1);
+			if (is_array($fpath))
+			{
+				$folderid = array_pop($fpath);
+				$id = "C" . $folderid;
+				$folders[] = $this->StatFolder($id);
+				$id = "T" . $folderid;
+				$folders[] = $this->StatFolder($id);
+			}
 		}
 		return $folders;
 	}
@@ -464,7 +468,7 @@ class BackendCalDAV extends BackendDiff {
 					break;
 
 				case "ATTENDEE":
-					$att_str = str_replace(":MAILTO:", ";MAILTO=", $property->Value());
+					$att_str = str_ireplace(":MAILTO:", ";MAILTO=", $property->Value());
 					$attendees = explode(";", $att_str);
 					$attendee = new SyncAttendee();
 					foreach ($attendees as $att)
@@ -506,6 +510,13 @@ class BackendCalDAV extends BackendDiff {
 				case "CATEGORIES":
 					$categories = explode(",", $property->Value());
 					$message->categories = $categories;
+					break;
+				
+				//We can ignore the following
+				case "PRIORITY":
+				case "SEQUENCE":
+				case "CREATED":
+				case "DTSTAMP":
 					break;
 
 				default:

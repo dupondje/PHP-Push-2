@@ -859,31 +859,31 @@ class BackendCalDAV extends BackendDiff {
 		if ($rec->dayofweek)
 		{
 			$days = array();
-			if (($val & 1) == 1)
+			if (($rec->dayofweek & 1) == 1)
 			{
 				$days[] = "SU";
 			}
-			if (($val & 2) == 2)
+			if (($rec->dayofweek & 2) == 2)
 			{
 				$days[] = "MO";
 			}
-			if (($val & 4) == 4)
+			if (($rec->dayofweek & 4) == 4)
 			{
 				$days[] = "TU";
 			}
-			if (($val & 8) == 8)
+			if (($rec->dayofweek & 8) == 8)
 			{
 				$days[] = "WE";
 			}
-			if (($val & 16) == 16)
+			if (($rec->dayofweek & 16) == 16)
 			{
 				$days[] = "TH";
 			}
-			if (($val & 32) == 32)
+			if (($rec->dayofweek & 32) == 32)
 			{
 				$days[] = "FR";
 			}
-			if (($val & 64) == 64)
+			if (($rec->dayofweek & 64) == 64)
 			{
 				$days[] = "SA";
 			}

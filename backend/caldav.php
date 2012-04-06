@@ -1117,6 +1117,14 @@ class BackendCalDAV extends BackendDiff {
 		{
 			$vtodo->AddProperty("SUMMARY", $data->subject);
 		}
+		if ($data->rtf)
+		{
+			$rtfparser = new rtf();
+			$rtfparser->loadrtf(base64_decode($data->rtf));
+			$rtfparser->output("ascii");
+			$rtfparser->parse();
+			$vevent->AddProperty("DESCRIPTION", $rtfparser->out);
+		}
 		if (is_array($data->categories))
 		{
 			$vtodo->AddProperty("CATEGORIES", implode(",", $data->categories));

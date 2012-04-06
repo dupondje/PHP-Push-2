@@ -536,25 +536,20 @@ class BackendCalDAV extends BackendDiff {
 			$properties = $valarm->GetProperties();
 			foreach ($properties as $property)
 			{
-				$property_split = explode(";", $property->Name());
-				if ($property_split[0] == "TRIGGER")
+				if ($property->Name() == "TRIGGER")
 				{
-					$type = null;
-					if (count($property_split) > 1)
-					{
-						$type = explode("=", $property_split[1]);
-					}
-					if ($type == "DURATION" || $type == null)
-					{
-						$val = str_replace("-", "", $property->Value());
-						$interval = new DateInterval($val);
-						$message->reminder = $interval->format("i");
-					}
-					elseif ($type == "DATE-TIME")
+					$parameters = $property->Parameters();
+					if (array_key_exists("VALUE", $parameters) && $parameters["VALUE"] == "DATE-TIME")
 					{
 						$trigger = $this->_MakeUTCDate($property->Value());
 						$begin = $start = date_create("@" . $message->starttime);
 						$interval = date_diff($begin, $trigger);
+						$message->reminder = $interval->format("i");
+					}
+					elseif (!array_key_exists("VALUE", $parameters) || $parameters["VALUE"] == "DURATION")
+					{
+						$val = str_replace("-", "", $property->Value());
+						$interval = new DateInterval($val);
 						$message->reminder = $interval->format("i");
 					}
 				}
@@ -1024,31 +1019,26 @@ class BackendCalDAV extends BackendDiff {
 			}
 		}
 		
-		$valarm = current($event->GetComponents("VALARM"));
+		$valarm = current($vtodo->GetComponents("VALARM"));
 		if ($valarm)
 		{
 			$properties = $valarm->GetProperties();
 			foreach ($properties as $property)
 			{
-				$property_split = explode(";", $property->Name());
-				if ($property_split[0] == "TRIGGER")
+				if ($property->Name() == "TRIGGER")
 				{
-					$type = null;
-					if (count($property_split) > 1)
+					$parameters = $property->Parameters();
+					if (array_key_exists("VALUE", $parameters) && $parameters["VALUE"] == "DATE-TIME")
 					{
-						$type = explode("=", $property_split[1]);
+						$message->remindertime = $this->_MakeUTCDate($property->Value());
+						$message->reminderset = "1";
 					}
-					if ($type == "DURATION" || $type == null)
+					elseif (!array_key_exists("VALUE", $parameters) || $parameters["VALUE"] == "DURATION")
 					{
 						$val = str_replace("-", "", $property->Value());
 						$interval = new DateInterval($val);
 						$start = date_create("@" . $message->utcstartdate);
 						$message->remindertime = date_sub($start, $interval);
-						$message->reminderset = "1";
-					}
-					elseif ($type == "DATE-TIME")
-					{
-						$message->remindertime = $this->_MakeUTCDate($property->Value());
 						$message->reminderset = "1";
 					}
 				}
@@ -1114,7 +1104,7 @@ class BackendCalDAV extends BackendDiff {
 		{
 			$valarm = new iCalComponent();
 			$valarm->SetType("VALARM");
-			$valarm->AddProperty("TRIGGER;VALUE=DATE-TIME:", gmdate("Ymd\THis\Z", $data->remindertime));
+			$valarm->AddProperty("TRIGGER;VALUE=DATE-TIME", gmdate("Ymd\THis\Z", $data->remindertime));
 			$vtodo->AddComponent($valarm);
 		}
 		if (isset($data->sensitivity))

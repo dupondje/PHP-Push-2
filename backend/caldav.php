@@ -706,22 +706,22 @@ class BackendCalDAV extends BackendDiff {
 		$vevent = new iCalComponent();
 		$vevent->SetType("VEVENT");
 
-		if ($data->dtstamp)
+		if (isset($data->dtstamp))
 		{
 			$vevent->AddProperty("DTSTAMP", gmdate("Ymd\THis\Z", $data->dtstamp));
 			$vevent->AddProperty("LAST-MODIFIED", gmdate("Ymd\THis\Z", $data->dtstamp));
 		}
-		if ($data->starttime)
+		if (isset($data->starttime))
 		{
 			$vevent->AddProperty("DTSTART", gmdate("Ymd\THis\Z", $data->starttime));
 		}
-		if ($data->subject)
+		if (isset($data->subject))
 		{
 			$vevent->AddProperty("SUMMARY", $data->subject);
 		}
-		if ($data->organizername)
+		if (isset($data->organizername))
 		{
-			if ($data->organizeremail)
+			if (isset($data->organizeremail))
 			{
 				$vevent->AddProperty("ORGANIZER", sprintf("CN=%s:MAILTO:%s", $data->organizername, $data->organizeremail));
 			}
@@ -730,15 +730,15 @@ class BackendCalDAV extends BackendDiff {
 				$vevent->AddProperty("ORGANIZER", sprintf("CN=%s", $data->organizername));
 			}
 		}
-		if ($data->location)
+		if (isset($data->location))
 		{
 			$vevent->AddProperty("LOCATION", $data->location);
 		}
-		if ($data->endtime)
+		if (isset($data->endtime))
 		{
 			$vevent->AddProperty("DTEND", gmdate("Ymd\THis\Z", $data->endtime));
 		}
-		if ($data->recurrence)
+		if (isset($data->recurrence))
 		{
 			$vevent->AddProperty("RRULE", $this->_GenerateRecurrence($data->recurrence));
 		}
@@ -771,7 +771,7 @@ class BackendCalDAV extends BackendDiff {
 					break;
 			}
 		}
-		if ($data->reminder)
+		if (isset($data->reminder))
 		{
 			$valarm = new iCalComponent();
 			$valarm->SetType("VALARM");
@@ -779,7 +779,7 @@ class BackendCalDAV extends BackendDiff {
 			$valarm->AddProperty("TRIGGER", $trigger);
 			$vevent->AddComponent($valarm);
 		}
-		if ($data->rtf)
+		if (isset($data->rtf))
 		{
 			$rtfparser = new rtf();
 			$rtfparser->loadrtf(base64_decode($data->rtf));
@@ -787,7 +787,7 @@ class BackendCalDAV extends BackendDiff {
 			$rtfparser->parse();
 			$vevent->AddProperty("DESCRIPTION", $rtfparser->out);
 		}
-		if ($data->meetingstatus)
+		if (isset($data->meetingstatus))
 		{
 			switch ($data->meetingstatus)
 			{
@@ -811,7 +811,7 @@ class BackendCalDAV extends BackendDiff {
 				$vevent->AddProperty("ATTENDEE", $att_str);
 			}
 		}
-		if ($data->body)
+		if (isset($data->body))
 		{
 			$vevent->AddProperty("DESCRIPTION", $data->body);
 		}
@@ -830,7 +830,7 @@ class BackendCalDAV extends BackendDiff {
 	private function _GenerateRecurrence($rec)
 	{
 		$rrule = array();
-		if ($rec->type)
+		if (isset($rec->type))
 		{
 			$freq = "";
 			switch ($rec->type)
@@ -850,19 +850,19 @@ class BackendCalDAV extends BackendDiff {
 			}
 			$rrule[] = "FREQ=" . $freq;
 		}
-		if ($rec->until)
+		if (isset($rec->until))
 		{
 			$rrule[] = "UNTIL=" . $rec->until;
 		}
-		if ($rec->occurrences)
+		if (isset($rec->occurrences))
 		{
 			$rrule[] = "COUNT=" . $rec->occurrences;
 		}
-		if ($rec->interval)
+		if (isset($rec->interval))
 		{
 			$rrule[] = "INTERVAL=" . $rec->interval;
 		}
-		if ($rec->dayofweek)
+		if (isset($rec->dayofweek))
 		{
 			$days = array();
 			if (($rec->dayofweek & 1) == 1)
@@ -895,11 +895,11 @@ class BackendCalDAV extends BackendDiff {
 			}
 			$rrule[] = "BYDAY=" . implode(",", $days);
 		}
-		if ($rec->dayofmonth)
+		if (isset($rec->dayofmonth))
 		{
 			$rrule[] = "BYMONTHDAY=" . $rec->dayofmonth;
 		}
-		if ($rec->monthofyear)
+		if (isset($rec->monthofyear))
 		{
 			$rrule[] = "BYMONTH=" . $rec->monthofyear;
 		}
@@ -1040,7 +1040,7 @@ class BackendCalDAV extends BackendDiff {
 		$vtodo = new iCalComponent();
 		$vtodo->SetType("VTODO");
 		
-		if ($data->body)
+		if (isset($data->body))
 		{
 			$vtodo->AddProperty("DESCRIPTION", $data->body);
 		}
@@ -1055,7 +1055,7 @@ class BackendCalDAV extends BackendDiff {
 				$vtodo->AddProperty("STATUS", "COMPLETED");
 			}
 		}
-		if ($data->datecompleted)
+		if (isset($data->datecompleted))
 		{
 			$vtodo->AddProperty("COMPLETED", gmdate("Ymd\THis\Z", $data->datecompleted));
 		}
@@ -1106,15 +1106,15 @@ class BackendCalDAV extends BackendDiff {
 					break;
 			}
 		}
-		if ($data->utcstartdate)
+		if (isset($data->utcstartdate))
 		{
 			$vtodo->AddProperty("DTSTART", gmdate("Ymd\THis\Z", $data->utcstartdate));
 		}
-		if ($data->subject)
+		if (isset($data->subject))
 		{
 			$vtodo->AddProperty("SUMMARY", $data->subject);
 		}
-		if ($data->rtf)
+		if (isset($data->rtf))
 		{
 			$rtfparser = new rtf();
 			$rtfparser->loadrtf(base64_decode($data->rtf));

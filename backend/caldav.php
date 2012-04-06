@@ -183,7 +183,7 @@ class BackendCalDAV extends BackendDiff {
 		}
 		else
 		{
-			$msgs = $this->_caldav->GetTodos($begin, $finish, $path);
+			$msgs = $this->_caldav->GetTodos($begin, $finish, false, false, $path);
 		}
 
 		$messages = array();
@@ -944,6 +944,9 @@ class BackendCalDAV extends BackendDiff {
 	 */
 	private function _ParseVTodoToSyncObject($vtodo, $message, $truncsize)
 	{
+		//Default
+		$message->reminderset = "0";
+		
 		$properties = $vtodo->GetProperties();
 		foreach ($properties as $property)
 		{
@@ -1038,7 +1041,7 @@ class BackendCalDAV extends BackendDiff {
 						$val = str_replace("-", "", $property->Value());
 						$interval = new DateInterval($val);
 						$start = date_create("@" . $message->utcstartdate);
-						$message->remindertime = date_sub($start, $interval);
+						$message->remindertime = date_timestamp_get(date_sub($start, $interval));
 						$message->reminderset = "1";
 					}
 				}

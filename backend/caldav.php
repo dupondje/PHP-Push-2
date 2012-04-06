@@ -680,7 +680,18 @@ class BackendCalDAV extends BackendDiff {
 		}
 		if ($folderid[0] == "T")
 		{
-			//TODO: Implement
+			$vtodo = $this->_ParseASTaskToVTodo($data, $id);
+			$vtodo->AddProperty("UID", $id);
+			if (is_array($data->exception))
+			{
+				foreach ($data->exception as $ex)
+				{
+					$exception = $this->_ParseASTaskToVTodo($ex, $id);
+					$exception->AddProperty("RECURRENCE-ID", $ex->exceptionstarttime);
+					$vtodo->AddComponent($exception);
+				}
+			}
+			$ical->AddComponent($vtodo);
 		}
 		 
 		return $ical->Render();

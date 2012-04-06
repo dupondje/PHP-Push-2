@@ -422,7 +422,7 @@ class BackendCalDAV extends BackendDiff {
 					break;
 
 				case "RRULE":
-					$message->recurrence = $this->_ParseRecurrence($property->Value());
+					$message->recurrence = $this->_ParseRecurrence($property->Value(), "vevent");
 					break;
 
 				case "CLASS":
@@ -549,9 +549,13 @@ class BackendCalDAV extends BackendDiff {
 	 * Parse a RRULE
 	 * @param string $rrulestr
 	 */
-	private function _ParseRecurrence($rrulestr)
+	private function _ParseRecurrence($rrulestr, $type)
 	{
 		$recurrence = new SyncRecurrence();
+		if ($type == "vtodo")
+		{
+			$recurrence = new SyncTaskRecurrence();
+		}
 		$rrules = explode(";", $rrulestr);
 		foreach ($rrules as $rrule)
 		{
@@ -884,11 +888,129 @@ class BackendCalDAV extends BackendDiff {
 		return implode(";", $rrule);
 	}
 
-	//TODO: Implement
-	private function _ParseVTodoToAS($data)
+	/**
+	 * Convert a iCAL VTodo to ActiveSync format
+	 * @param string $data
+	 * @param ContentParameters $contentparameters
+	 */
+	private function _ParseVTodoToAS($data, $contentparameters)
 	{
+		ZLog::Write(LOGLEVEL_DEBUG, sprintf("BackendCalDAV->_ParseVTodoToAS(): Parsing VTodo"));
+		$truncsize = Utils::GetTruncSize($contentparameters->GetTruncation());
+		
+		$message = new SyncTask();
+		$ical = new iCalComponent($data);
+		
+		$vtodos = $ical->GetComponents("VTODO");
+		//Should only loop once
+		foreach ($vtodos as $vtodo)
+		{
+			$message = $this->_ParseVTodoToSyncObject($vtodo, $message, $truncsize);
+		}
+		return $message;
 	}
 
+	/**
+	 * Parse 1 VEvent
+	 * @param ical_vtodo $vtodo
+	 * @param SyncAppointment(Exception) $message
+	 * @param int $truncsize
+	 */
+	private function _ParseVTodoToSyncObject($vtodo, $message, $truncsize)
+	{
+		$properties = $event->GetProperties();
+		foreach ($properties as $property)
+		{
+			switch ($property->Name())
+			{
+				case "SUMMARY":
+					$message->subject = $property->Value();
+					break;
+				
+				case "STATUS":
+					switch ($property->Value())
+					{
+						case "NEEDS-ACTION":
+						case "IN-PROCESS":
+							$message->complete = "0";
+							break;
+						case "COMPLETED":
+						case "CANCELLED":
+							$message->complete = "1";
+							break;
+					}
+					break;
+				
+				case "COMPLETED":
+					$message->datecompleted = $this->_MakeUTCDate($property->Value());
+					break;
+					
+				case "DUE":
+					$message->utcduedate = $this->_MakeUTCDate($property->Value());
+					break;
+					
+				case "PRIORITY":
+					$priority = $property->Value();
+					if ($priority <= 3)
+						$message->importance = "0";
+					if ($priority <= 6)
+						$message->importance = "1";
+					if ($priority > 6)
+						$message->importance = "2";
+					break;
+					
+				case "RRULE":
+					$message->recurrence = $this->_ParseRecurrence($property->Value(), "vevent");
+					break;
+				
+				case "CLASS":
+					switch ($property->Value())
+					{
+						case "PUBLIC":
+							$message->sensitivity = "0";
+							break;
+						case "PRIVATE":
+							$message->sensitivity = "2";
+							break;
+						case "CONFIDENTIAL":
+							$message->sensitivity = "3";
+							break;
+					}
+					break;
+					
+				case "DTSTART":
+					$message->utcstartdate = $this->_MakeUTCDate($property->Value());
+					break;
+				
+				case "SUMMARY":
+					$message->subject = $property->Value();
+					break;
+					
+				case "CATEGORIES":
+					$categories = explode(",", $property->Value());
+					$message->categories = $categories;
+					break;
+			}
+		}
+		
+		$valarm = current($event->GetComponents("VALARM"));
+		if ($valarm)
+		{
+			$properties = $event->GetProperties();
+			foreach ($properties as $property)
+			{
+				switch ($property->Name())
+				{
+					case "TRIGGER":
+						$message->remindertime = $this->_MakeUTCDate($property->Value());
+						$message->reminderset = "1";
+						break;
+				}
+			}
+		}
+		return $message;		
+	}
+	
 	//TODO: Implement
 	private function _ParseASTaskToVTodo($data, $id)
 	{

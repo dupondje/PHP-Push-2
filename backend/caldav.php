@@ -263,7 +263,7 @@ class BackendCalDAV extends BackendDiff {
 			$id = $date . "-" . $random . ".ics";
 		}
 
-		$data = $this->_ParseASEventToVCalendar($message, $folderid, substr($id, 0, strlen($id)-4));
+		$data = $this->_ParseASToVCalendar($message, $folderid, substr($id, 0, strlen($id)-4));
 
 		$url = $this->_caldav_path . substr($folderid, 1) . "/" . $id;
 		$etag_new = $this->_caldav->DoPUTRequest($url, $data, $etag);
@@ -655,7 +655,7 @@ class BackendCalDAV extends BackendDiff {
 	 * @param string $folderid
 	 * @param string $id
 	 */
-	private function _ParseASEventToVCalendar($data, $folderid, $id)
+	private function _ParseASToVCalendar($data, $folderid, $id)
 	{
 		$ical = new iCalComponent();
 		$ical->SetType("VCALENDAR");
@@ -779,6 +779,7 @@ class BackendCalDAV extends BackendDiff {
 			$valarm->SetType("VALARM");
 			$trigger = "-PT0H" . $data->reminder . "M0S";
 			$valarm->AddProperty("TRIGGER", $trigger);
+			$vevent->AddComponent($valarm);
 		}
 		if ($data->meetingstatus)
 		{
@@ -1022,9 +1023,97 @@ class BackendCalDAV extends BackendDiff {
 		return $message;		
 	}
 	
-	//TODO: Implement
+	/**
+	 * Generate a VTODO from a SyncAppointment(Exception)
+	 * @param string $data
+	 * @param string $id
+	 * @return iCalComponent
+	 */
 	private function _ParseASTaskToVTodo($data, $id)
 	{
+		$vtodo = new iCalComponent();
+		$vtodo->SetType("VTODO");
+		
+		if ($data->body)
+		{
+			$vtodo->AddProperty("DESCRIPTION", $data->body);
+		}
+		if ($data->complete)
+		{
+			if ($data->complete = "0")
+			{
+				$vtodo->AddProperty("STATUS", "NEEDS-ACTION");
+			}
+			else
+			{
+				$vtodo->AddProperty("STATUS", "COMPLETED");
+			}
+		}
+		if ($data->datecompleted)
+		{
+			$vtodo->AddProperty("COMPLETED", gmdate("Ymd\THis\Z", $data->datecompleted));
+		}
+		if ($data->utcduedate)
+		{
+			$vtodo->AddProperty("DUE", gmdate("Ymd\THis\Z", $data->utcduedate));
+		}
+		if ($data->importance)
+		{
+			if ($data->importance == "1")
+			{
+				$vtodo->AddProperty("PRIORITY", 6);
+			}
+			elseif ($data->importance == "2")
+			{
+				$vtodo->AddProperty("PRIORITY", 9);
+			}
+			else
+			{
+				$vtodo->AddProperty("PRIORITY", 1);
+			}
+		}
+		if (is_array($data->recurrence))
+		{
+			$vtodo->AddProperty("RRULE", $this->_GenerateRecurrence($data->recurrence));
+		}
+		if ($data->reminderset && $data->remindertime)
+		{
+			$valarm = new iCalComponent();
+			$valarm->SetType("VALARM");
+			$valarm->AddProperty("TRIGGER", gmdate("Ymd\THis\Z", $data->remindertime));
+			$vtodo->AddComponent($valarm);
+		}
+		if ($data->sensitivity)
+		{
+			switch ($data->sensitivity)
+			{
+				case "0":
+					$vtodo->AddProperty("CLASS", "PUBLIC");
+					break;
+					
+				case "2":
+					$vtodo->AddProperty("CLASS", "PRIVATE");
+					break;
+					
+				case "3":
+					$vtodo->AddProperty("CLASS", "CONFIDENTIAL");
+					break;
+			}
+		}
+		if ($data->utcstartdate)
+		{
+			$vtodo->AddProperty("DTSTART", gmdate("Ymd\THis\Z", $data->utcstartdates));
+		}
+		if ($data->subject)
+		{
+			$vtodo->AddProperty("SUMMARY", $data->subject);
+		}
+		if (is_array($data->categories))
+		{
+			$vtodo->AddProperty("CATEGORIES", implode(",", $data->categories));
+		}
+		
+		return $vtodo;
 	}
 
 	/**

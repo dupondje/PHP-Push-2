@@ -533,7 +533,7 @@ class BackendCalDAV extends BackendDiff {
 		$valarm = current($event->GetComponents("VALARM"));
 		if ($valarm)
 		{
-			$properties = $event->GetProperties();
+			$properties = $valarm->GetProperties();
 			foreach ($properties as $property)
 			{
 				switch ($property->Name())
@@ -742,7 +742,7 @@ class BackendCalDAV extends BackendDiff {
 		{
 			$vevent->AddProperty("RRULE", $this->_GenerateRecurrence($data->recurrence));
 		}
-		if ($data->sensitivity)
+		if (isset($data->sensitivity))
 		{
 			switch ($data->sensitivity)
 			{
@@ -757,7 +757,7 @@ class BackendCalDAV extends BackendDiff {
 					break;
 			}
 		}
-		if ($data->busystatus)
+		if (isset($data->busystatus))
 		{
 			switch ($data->busystatus)
 			{
@@ -1011,10 +1011,10 @@ class BackendCalDAV extends BackendDiff {
 			}
 		}
 		
-		$valarm = current($event->GetComponents("VALARM"));
+		$valarm = current($vtodo->GetComponents("VALARM"));
 		if ($valarm)
 		{
-			$properties = $vtodo->GetProperties();
+			$properties = $valarm->GetProperties();
 			foreach ($properties as $property)
 			{
 				switch ($property->Name())
@@ -1044,9 +1044,9 @@ class BackendCalDAV extends BackendDiff {
 		{
 			$vtodo->AddProperty("DESCRIPTION", $data->body);
 		}
-		if ($data->complete)
+		if (isset($data->complete))
 		{
-			if ($data->complete = "0")
+			if ($data->complete == "0")
 			{
 				$vtodo->AddProperty("STATUS", "NEEDS-ACTION");
 			}
@@ -1063,7 +1063,7 @@ class BackendCalDAV extends BackendDiff {
 		{
 			$vtodo->AddProperty("DUE", gmdate("Ymd\THis\Z", $data->utcduedate));
 		}
-		if ($data->importance)
+		if (isset($data->importance))
 		{
 			if ($data->importance == "1")
 			{
@@ -1089,7 +1089,7 @@ class BackendCalDAV extends BackendDiff {
 			$valarm->AddProperty("TRIGGER", gmdate("Ymd\THis\Z", $data->remindertime));
 			$vtodo->AddComponent($valarm);
 		}
-		if ($data->sensitivity)
+		if (isset($data->sensitivity))
 		{
 			switch ($data->sensitivity)
 			{

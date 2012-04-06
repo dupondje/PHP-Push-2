@@ -936,7 +936,7 @@ class BackendCalDAV extends BackendDiff {
 	 */
 	private function _ParseVTodoToSyncObject($vtodo, $message, $truncsize)
 	{
-		$properties = $event->GetProperties();
+		$properties = $vtodo->GetProperties();
 		foreach ($properties as $property)
 		{
 			switch ($property->Name())
@@ -1014,7 +1014,7 @@ class BackendCalDAV extends BackendDiff {
 		$valarm = current($event->GetComponents("VALARM"));
 		if ($valarm)
 		{
-			$properties = $event->GetProperties();
+			$properties = $vtodo->GetProperties();
 			foreach ($properties as $property)
 			{
 				switch ($property->Name())

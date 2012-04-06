@@ -1156,17 +1156,17 @@ class BackendCalDAV extends BackendDiff {
 	private function _ParseTimezone($timezone)
 	{
 		//(GMT+01.00) Amsterdam / Berlin / Bern / Rome / Stockholm / Vienna
-		if (preg_match('/GMT(\\+|\\-)0(\d)/', $string, $matches))
+		if (preg_match('/GMT(\\+|\\-)0(\d)/', $timezone, $matches))
 		{
 			return "Etc/GMT" . $matches[1] . $matches[2];
 		}
 		//(GMT+10.00) XXX / XXX / XXX / XXX
-		if (preg_match('/GMT(\\+|\\-)1(\d)/', $string, $matches))
+		if (preg_match('/GMT(\\+|\\-)1(\d)/', $timezone, $matches))
 		{
 			return "Etc/GMT" . $matches[1] . "1" . $matches[2];
 		}
 		///inverse.ca/20101018_1/Europe/Amsterdam
-		if (preg_match('/\/[.[:word:]]+\/\w+\/(\w+)\/(\w+)/', $string, $matches))
+		if (preg_match('/\/[.[:word:]]+\/\w+\/(\w+)\/(\w+)/', $timezone, $matches))
 		{
 			return $matches[1] . $matches[2];
 		}

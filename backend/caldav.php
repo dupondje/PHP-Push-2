@@ -947,6 +947,7 @@ class BackendCalDAV extends BackendDiff {
 		//Default
 		$message->reminderset = "0";
 		$message->importance = "1";
+		$message->complete = "0";
 		
 		$properties = $vtodo->GetProperties();
 		foreach ($properties as $property)
@@ -990,7 +991,7 @@ class BackendCalDAV extends BackendDiff {
 					break;
 					
 				case "RRULE":
-					$message->recurrence = $this->_ParseRecurrence($property->Value(), "vevent");
+					$message->recurrence = $this->_ParseRecurrence($property->Value(), "vtodo");
 					break;
 				
 				case "CLASS":
@@ -1021,6 +1022,11 @@ class BackendCalDAV extends BackendDiff {
 					$message->categories = $categories;
 					break;
 			}
+		}
+		
+		if (isset($message->recurrence))
+		{
+			$message->recurrence->start = $message->utcstartdate;
 		}
 		
 		$valarm = current($vtodo->GetComponents("VALARM"));
@@ -1100,7 +1106,7 @@ class BackendCalDAV extends BackendDiff {
 				$vtodo->AddProperty("PRIORITY", 1);
 			}
 		}
-		if (is_array($data->recurrence))
+		if (isset($data->recurrence))
 		{
 			$vtodo->AddProperty("RRULE", $this->_GenerateRecurrence($data->recurrence));
 		}

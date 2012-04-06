@@ -326,7 +326,7 @@ class BackendCalDAV extends BackendDiff {
 		$timezones = $ical->GetComponents("VTIMEZONE");
 		if (count($timezones) > 0)
 		{
-			$timezone = $timezones[0]->GetPValue("TZID");
+			$timezone = $this->_ParseTimezone($timezones[0]->GetPValue("TZID"));
 			$message->timezone = $this->_GetTimezoneString($timezone);
 		}
 		 
@@ -338,7 +338,7 @@ class BackendCalDAV extends BackendDiff {
 			{
 				$recurrence_id = reset($rec);
 				$exception = new SyncAppointmentException();
-				$tzid = $recurrence_id->GetParameterValue("TZID");
+				$tzid = $this->_ParseTimezone($recurrence_id->GetParameterValue("TZID"));
 				if (!$tzid)
 				{
 					$tzid = $timezone;
@@ -1057,6 +1057,31 @@ class BackendCalDAV extends BackendDiff {
 			$date = date_create_from_format('Ymd', $value, $tz);
 		}
 		return date_timestamp_get($date);
+	}
+	
+	/**
+	 * Generate a tzid from various formats
+	 * @param str $timezone
+	 * @return timezone id
+	 */
+	private function _ParseTimezone($timezone)
+	{
+		//(GMT+01.00) Amsterdam / Berlin / Bern / Rome / Stockholm / Vienna
+		if (preg_match('/GMT(\\+|\\-)0(\d)/', $string, $matches))
+		{
+			return "Etc/GMT" . $matches[1] . $matches[2];
+		}
+		//(GMT+10.00) XXX / XXX / XXX / XXX
+		if (preg_match('/GMT(\\+|\\-)1(\d)/', $string, $matches))
+		{
+			return "Etc/GMT" . $matches[1] . "1" . $matches[2];
+		}
+		///inverse.ca/20101018_1/Europe/Amsterdam
+		if (preg_match('/\/[.[:word:]]+\/\w+\/(\w+)\/(\w+)/', $string, $matches))
+		{
+			return $matches[1] . $matches[2];
+		}
+		return $timezone;
 	}
 
 	/**

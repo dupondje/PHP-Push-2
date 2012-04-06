@@ -683,6 +683,7 @@ class BackendCalDAV extends BackendDiff {
 		{
 			$vtodo = $this->_ParseASTaskToVTodo($data, $id);
 			$vtodo->AddProperty("UID", $id);
+			$vtodo->AddProperty("DTSTAMP", gmdate("Ymd\THis\Z"));
 			$ical->AddComponent($vtodo);
 		}
 		 

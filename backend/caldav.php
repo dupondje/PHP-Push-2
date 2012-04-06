@@ -223,6 +223,11 @@ class BackendCalDAV extends BackendDiff {
 	public function StatMessage($folderid, $id)
 	{
 		ZLog::Write(LOGLEVEL_DEBUG, sprintf("BackendCalDAV->StatMessage('%s','%s')", $folderid,  $id));
+		$type = "VEVENT";
+		if ($folderid[0] == "T")
+		{
+			$type = "VTODO";
+		}
 		$data = null;
 		if (array_key_exists($id, $this->_collection))
 		{
@@ -231,7 +236,7 @@ class BackendCalDAV extends BackendDiff {
 		else
 		{
 			$path = $this->_caldav_path . substr($folderid, 1) . "/";
-			$e = $this->_caldav->GetEntryByUid(substr($id, 0, strlen($id)-4), $path);
+			$e = $this->_caldav->GetEntryByUid(substr($id, 0, strlen($id)-4), $path, $type);
 			if ($e == null && count($e) <= 0)
 				return;
 			$data = $e[0];

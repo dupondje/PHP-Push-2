@@ -946,6 +946,7 @@ class BackendCalDAV extends BackendDiff {
 	{
 		//Default
 		$message->reminderset = "0";
+		$message->importance = "1";
 		
 		$properties = $vtodo->GetProperties();
 		foreach ($properties as $property)

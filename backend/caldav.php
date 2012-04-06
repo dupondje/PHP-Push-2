@@ -683,15 +683,6 @@ class BackendCalDAV extends BackendDiff {
 		{
 			$vtodo = $this->_ParseASTaskToVTodo($data, $id);
 			$vtodo->AddProperty("UID", $id);
-			if (is_array($data->exception))
-			{
-				foreach ($data->exception as $ex)
-				{
-					$exception = $this->_ParseASTaskToVTodo($ex, $id);
-					$exception->AddProperty("RECURRENCE-ID", $ex->exceptionstarttime);
-					$vtodo->AddComponent($exception);
-				}
-			}
 			$ical->AddComponent($vtodo);
 		}
 		 
@@ -1060,11 +1051,11 @@ class BackendCalDAV extends BackendDiff {
 		}
 		if ($data->datecompleted)
 		{
-			$vtodo->AddProperty("COMPLETED", gmdate("Ymd\THis\Z", $data->datecompleted));
+			$vtodo->AddProperty("COMPLETED", gmdate("Y-m-d\TH:i:s.u\Z", $data->datecompleted));
 		}
 		if ($data->utcduedate)
 		{
-			$vtodo->AddProperty("DUE", gmdate("Ymd\THis\Z", $data->utcduedate));
+			$vtodo->AddProperty("DUE", gmdate("Y-m-d\TH:i:s.u\Z", $data->utcduedate));
 		}
 		if ($data->importance)
 		{
@@ -1089,7 +1080,7 @@ class BackendCalDAV extends BackendDiff {
 		{
 			$valarm = new iCalComponent();
 			$valarm->SetType("VALARM");
-			$valarm->AddProperty("TRIGGER", gmdate("Ymd\THis\Z", $data->remindertime));
+			$valarm->AddProperty("TRIGGER", gmdate("Y-m-d\TH:i:s.u\Z", $data->remindertime));
 			$vtodo->AddComponent($valarm);
 		}
 		if ($data->sensitivity)
@@ -1111,7 +1102,7 @@ class BackendCalDAV extends BackendDiff {
 		}
 		if ($data->utcstartdate)
 		{
-			$vtodo->AddProperty("DTSTART", gmdate("Ymd\THis\Z", $data->utcstartdates));
+			$vtodo->AddProperty("DTSTART", gmdate("Y-m-d\TH:i:s.u\Z", $data->utcstartdate));
 		}
 		if ($data->subject)
 		{

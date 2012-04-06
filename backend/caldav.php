@@ -13,6 +13,7 @@
 
 include_once('lib/default/diffbackend/diffbackend.php');
 include_once('include/caldav-client-v2.php');
+include_once('include/z_RTF.php');
 include_once('iCalendar.php');
 
 class BackendCalDAV extends BackendDiff {
@@ -780,6 +781,14 @@ class BackendCalDAV extends BackendDiff {
 			$trigger = "-PT0H" . $data->reminder . "M0S";
 			$valarm->AddProperty("TRIGGER", $trigger);
 			$vevent->AddComponent($valarm);
+		}
+		if ($data->rtf)
+		{
+			$rtfparser = new rtf();
+			$rtfparser->loadrtf(base64_decode($data->rtf));
+			$rtfparser->output("ascii");
+			$rtfparser->parse();
+			$vevent->AddProperty("DESCRIPTION", $rtfparser->out);
 		}
 		if ($data->meetingstatus)
 		{

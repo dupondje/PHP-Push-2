@@ -164,29 +164,84 @@ class BackendLDAP extends BackendDiff {
 			
 			switch ($name)
 			{
-				case "givenName":
-					$contact->firstname = $value;
+				//person
+				case "cn":
+					$contact->fileas = $value;
 					break;
 				case "sn":
 					$contact->lastname = $value;
 					break;
-				case "mobile":
-					$contact->mobilephonenumber = $value;
+				//inetOrgPerson
+				case "departmentNumber":
+					$contact->department = $value;
 					break;
-				case "cn":
-					$contact->files = $value;
+				case "givenName":
+					$contact->firstname = $value;
 					break;
-				case "street":
-					$contact->homestreet = $value;
+				case "homePhone":
+					$contact->homephonenumber = $value;
 					break;
-				case "l":
-					$contact->homecity = $value;
+				case "jpegPhoto":
+					$contact->picture = base64_encode($value);
 					break;
-				case "postalCode":
-					$contact->homepostalcode = $value;
+				case "labeledURI":
+					$contact->webpage = $value;
 					break;
 				case "mail":
 					$contact->email1address = $value;
+					if ($values[$name]["count"] >= 2)
+					{
+						$contact->email2address = $values[$name][1];
+					}
+					if ($values[$name]["count"] >= 3)
+					{
+						$contact->email3address = $values[$name][2];
+					}
+					break;
+				case "mobile":
+					$contact->mobilephonenumber = $value;
+					break;
+				case "o":
+					$contact->companyname = $value;
+					break;
+				case "pager":
+					$contact->pagernumber = $value;
+					break;
+				case "secretary":
+					$contact->assistantname = $value;
+					break;
+				//organizationalPerson					
+				case "l":
+					$contact->businesscity = $value;
+					break;
+				case "ou":
+					$contact->department = $value;
+					break;
+				case "physicalDeliveryOfficeName":
+					$contact->officelocation = $value;
+					break;
+				case "postalCode":
+					$contact->businesspostalcode = $value;
+					break;
+				case "st":
+					$contact->businessstate = $value;	
+				case "street":
+					$contact->businessstreet = $value;
+					break;
+				case "telephoneNumber":
+					$contact->businessphonenumber = $value;
+					if ($values[$name]["count"] >= 2)
+					{
+						$contact->business2phonenumber = $values[$name][1];
+					}
+					break;
+				case "title":
+					$contact->title = $value;
+					break;
+				case "description":
+					$contact->body = $value;
+					$contact->bodysize = strlen($value);
+					$contact->bodytruncated = "0";
 					break;
 			}
 		}

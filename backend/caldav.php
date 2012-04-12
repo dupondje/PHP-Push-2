@@ -399,19 +399,12 @@ class BackendCalDAV extends BackendDiff {
 					break;
 
 				case "ORGANIZER":
-					$org_str = str_replace(":MAILTO:", ";MAILTO=", $property->Value());
-					$orgs = explode(";", $org_str);
-					foreach ($orgs as $org)
+					$org_mail = str_ireplace("MAILTO:", "", $property->Value());
+					$message->organizeremail = $org_mail;
+					$org_cn = $property->GetParameterValue("CN");
+					if ($org_cn)
 					{
-						$o = explode("=", $org);
-						if ($o[0] == "CN")
-						{
-							$message->organizername = $o[1];
-						}
-						if ($o[0] == "MAILTO")
-						{
-							$message->organizeremail = $o[1];
-						}
+						$message->organizername = $org_cn;
 					}
 					break;
 
@@ -474,20 +467,13 @@ class BackendCalDAV extends BackendDiff {
 					break;
 
 				case "ATTENDEE":
-					$att_str = str_ireplace(":MAILTO:", ";MAILTO=", $property->Value());
-					$attendees = explode(";", $att_str);
 					$attendee = new SyncAttendee();
-					foreach ($attendees as $att)
+					$att_email = str_ireplace(":MAILTO:", ";MAILTO=", $property->Value());
+					$attendee->email = $att_email;
+					$att_cn = $property->GetParameterValue("CN");
+					if ($att_cn)
 					{
-						$a = explode("=", $att);
-						if ($a[0] == "CN")
-						{
-							$attendee->name = $a[1];
-						}
-						if ($a[0] == "MAILTO")
-						{
-							$attendee->email = $a[1];
-						}
+						$attendee->name = $att_cn;
 					}
 					if (is_array($message->attendees))
 					{
@@ -1210,7 +1196,7 @@ class BackendCalDAV extends BackendDiff {
 		///inverse.ca/20101018_1/Europe/Amsterdam
 		if (preg_match('/\/[.[:word:]]+\/\w+\/(\w+)\/(\w+)/', $timezone, $matches))
 		{
-			return $matches[1] . $matches[2];
+			return $matches[1] . "/" . $matches[2];
 		}
 		return $timezone;
 	}

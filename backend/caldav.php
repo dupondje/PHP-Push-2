@@ -468,7 +468,7 @@ class BackendCalDAV extends BackendDiff {
 
 				case "ATTENDEE":
 					$attendee = new SyncAttendee();
-					$att_email = str_ireplace("MAILTO:", ";MAILTO=", $property->Value());
+					$att_email = str_ireplace("MAILTO:", "", $property->Value());
 					$attendee->email = $att_email;
 					$att_cn = $property->GetParameterValue("CN");
 					if ($att_cn)

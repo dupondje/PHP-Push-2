@@ -475,7 +475,7 @@ class BackendCalDAV extends BackendDiff {
 					{
 						$attendee->name = $att_cn;
 					}
-					if (is_array($message->attendees))
+					if (isset($message->attendees) && is_array($message->attendees))
 					{
 						$message->attendees[] = $attendee;
 					}
@@ -667,7 +667,7 @@ class BackendCalDAV extends BackendDiff {
 		{
 			$vevent = $this->_ParseASEventToVEvent($data, $id);
 			$vevent->AddProperty("UID", $id);
-			if (is_array($data->exception))
+			if (isset($data->exception) && is_array($data->exception))
 			{
 				foreach ($data->exception as $ex)
 				{
@@ -797,7 +797,7 @@ class BackendCalDAV extends BackendDiff {
 					break;
 			}
 		}
-		if (is_array($data->attendees))
+		if (isset($data->attendees) && is_array($data->attendees))
 		{
 			foreach ($data->attendees as $att)
 			{
@@ -809,7 +809,7 @@ class BackendCalDAV extends BackendDiff {
 		{
 			$vevent->AddProperty("DESCRIPTION", $data->body);
 		}
-		if (is_array($data->categories))
+		if (isset($data->categories) && is_array($data->categories))
 		{
 			$vevent->AddProperty("CATEGORIES", implode(",", $data->categories));
 		}
@@ -1136,7 +1136,7 @@ class BackendCalDAV extends BackendDiff {
 			$rtfparser->parse();
 			$vevent->AddProperty("DESCRIPTION", $rtfparser->out);
 		}
-		if (is_array($data->categories))
+		if (isset($data->categories) && is_array($data->categories))
 		{
 			$vtodo->AddProperty("CATEGORIES", implode(",", $data->categories));
 		}

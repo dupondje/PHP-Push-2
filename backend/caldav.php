@@ -119,11 +119,25 @@ class BackendCalDAV extends BackendDiff {
 		$folder->serverid = $id;
 		if ($id[0] == "C")
 		{
-			$folder->type = SYNC_FOLDER_TYPE_APPOINTMENT;
+			if (defined(CALDAV_PERSONAL) && strtolower(substr($id, 1) == CALDAV_PERSONAL))
+			{
+				$folder->type = SYNC_FOLDER_TYPE_USER_APPOINTMENT;
+			}
+			else
+			{
+				$folder->type = SYNC_FOLDER_TYPE_APPOINTMENT;
+			}
 		}
 		else
 		{
-			$folder->type = SYNC_FOLDER_TYPE_TASK;
+			if (defined(CALDAV_PERSONAL) && strtolower(substr($id, 1) == CALDAV_PERSONAL))
+			{
+				$folder->type = SYNC_FOLDER_TYPE_USER_TASK;
+			}
+			else
+			{
+				$folder->type = SYNC_FOLDER_TYPE_TASK;
+			}
 		}
 		return $folder;
 	}
@@ -383,7 +397,7 @@ class BackendCalDAV extends BackendDiff {
 					break;
 
 				case "DTSTART":
-					$message->starttime = $this->_MakeUTCDate($property->Value(), $property->GetParameterValue("TZID"));
+					$message->starttime = $this->_MakeUTCDate($property->Value(), $this->_ParseTimezone($property->GetParameterValue("TZID")));
 					if (strlen($property->Value()) == 8)
 					{
 						$message->alldayevent = "1";
@@ -413,7 +427,7 @@ class BackendCalDAV extends BackendDiff {
 					break;
 
 				case "DTEND":
-					$message->endtime = $this->_MakeUTCDate($property->Value(), $property->GetParameterValue("TZID"));
+					$message->endtime = $this->_MakeUTCDate($property->Value(), $this->_ParseTimezone($property->GetParameterValue("TZID")));
 					if (strlen($property->Value()) == 8)
 					{
 						$message->alldayevent = "1";
@@ -801,7 +815,7 @@ class BackendCalDAV extends BackendDiff {
 		{
 			foreach ($data->attendees as $att)
 			{
-				$att_str = sprinf("CN=%s:MAILTO:%s", $att->name, $att->email);
+				$att_str = sprintf("CN=%s:MAILTO:%s", $att->name, $att->email);
 				$vevent->AddProperty("ATTENDEE", $att_str);
 			}
 		}
@@ -1193,12 +1207,12 @@ class BackendCalDAV extends BackendDiff {
 		{
 			return "Etc/GMT" . $matches[1] . "1" . $matches[2];
 		}
-		///inverse.ca/20101018_1/Europe/Amsterdam
-		if (preg_match('/\/[.[:word:]]+\/\w+\/(\w+)\/(\w+)/', $timezone, $matches))
+		///inverse.ca/20101018_1/Europe/Amsterdam or /inverse.ca/20101018_1/America/Argentina/Buenos_Aires
+		if (preg_match('/\/[.[:word:]]+\/\w+\/(\w+)\/([\w\/]+)/', $timezone, $matches))
 		{
 			return $matches[1] . "/" . $matches[2];
 		}
-		return $timezone;
+		return trim($timezone, '"');
 	}
 
 	/**

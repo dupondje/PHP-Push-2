@@ -64,6 +64,8 @@ include('version.php');
 
     try {
         ZPush::CheckConfig();
+        if (!function_exists("pcntl_signal"))
+            throw new FatalException("Function pcntl_signal() is not available. Please install package 'php5-pcntl' (or similar) on your system.");
 
         $zpt = new ZPushTop();
         if ($zpt->IsAvailable()) {

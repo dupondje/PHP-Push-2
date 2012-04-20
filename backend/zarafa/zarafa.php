@@ -955,7 +955,7 @@ class BackendZarafa implements IBackend, ISearchProvider {
      * @return boolean
      */
     public function SupportsType($searchtype) {
-        return ($searchtype == ISearchProvider::SEARCH_GAL);
+        return ($searchtype == ISearchProvider::SEARCH_GAL) || ($searchtype == ISearchProvider::SEARCH_MAILBOX);
     }
 
     /**
@@ -1054,6 +1054,48 @@ class BackendZarafa implements IBackend, ISearchProvider {
     }
 
     /**
+     * Searches for the emails on the server
+     *
+     * @param ContentParameter $cpo
+     *
+     * @return array
+     */
+    public function GetMailboxSearchResults($cpo) {
+        $searchFolder = $this->getSearchFolder();
+        $searchRestriction = $this->getSearchRestriction($cpo->GetSearchFreeText());
+        $searchRange = explode('-', $cpo->GetSearchRange());
+        $searchFolderId = $cpo->GetSearchFolderid();
+        $items = array();
+
+        $tmp = mapi_getprops($this->store, array(PR_ENTRYID,PR_DISPLAY_NAME,PR_IPM_SUBTREE_ENTRYID));
+        mapi_folder_setsearchcriteria($searchFolder, $searchRestriction, array($tmp[PR_IPM_SUBTREE_ENTRYID]), RECURSIVE_SEARCH);
+
+        $table = mapi_folder_getcontentstable($searchFolder);
+        $searchStart = time();
+        // do the search and wait for all the results available
+        while (time() - $searchStart < SEARCH_WAIT) {
+            $searchcriteria = mapi_folder_getsearchcriteria($searchFolder);
+            if(($searchcriteria["searchstate"] & SEARCH_REBUILD) == 0)
+                break; // Search is done
+            sleep(1);
+        }
+
+        // if the search range is set limit the result to it, otherwise return all found messages
+        $rows = (is_array($searchRange) && isset($searchRange[0]) && isset($searchRange[1])) ?
+            mapi_table_queryrows($table, array(PR_SOURCE_KEY, PR_PARENT_SOURCE_KEY), $searchRange[0], $searchRange[1] - $searchRange[0] + 1) :
+            mapi_table_queryrows($table, array(PR_SOURCE_KEY, PR_PARENT_SOURCE_KEY), 0, SEARCH_MAXRESULTS);
+
+        $cnt = count($rows);
+        $items['searchtotal'] = $cnt;
+        for ($i = 0; $i < $cnt; $i++) {
+            $items[$i]['class'] = 'Email';
+            $items[$i]['longid'] = bin2hex($rows[$i][PR_PARENT_SOURCE_KEY]) . ":" . bin2hex($rows[$i][PR_SOURCE_KEY]);
+            $items[$i]['folderid'] = bin2hex($rows[$i][PR_PARENT_SOURCE_KEY]);
+        }
+        return $items;
+    }
+
+    /**
      * Disconnects from the current search provider
      *
      * @access public
@@ -1061,6 +1103,34 @@ class BackendZarafa implements IBackend, ISearchProvider {
      */
     public function Disconnect() {
         return true;
+    }
+
+    /**
+     * Returns the MAPI store ressource for a folderid
+     * This is not part of IBackend but necessary for the ImportChangesICS->MoveMessage() operation if
+     * the destination folder is not in the default store
+     * Note: The current backend store might be changed as IBackend->Setup() is executed
+     *
+     * @param string        $store              target store, could contain a "domain\user" value - if emtpy default store is returned
+     * @param string        $folderid
+     *
+     * @access public
+     * @return Ressource/boolean
+     */
+    public function GetMAPIStoreForFolderId($store, $folderid) {
+        if ($store == false) {
+            ZLog::Write(LOGLEVEL_DEBUG, sprintf("ZarafaBackend->GetMAPIStoreForFolderId('%s', '%s'): no store specified, returning default store", $store, $folderid));
+            return $this->defaultstore;
+        }
+
+        // setup the correct store
+        if ($this->Setup($store, false, $folderid)) {
+            return $this->store;
+        }
+        else {
+            ZLog::Write(LOGLEVEL_WARN, sprintf("ZarafaBackend->GetMAPIStoreForFolderId('%s', '%s'): store is not available", $store, $folderid));
+            return false;
+        }
     }
 
 
@@ -1336,6 +1406,161 @@ class BackendZarafa implements IBackend, ISearchProvider {
         mapi_message_modifyrecipients($mapimessage, 0, $recips);
     }
 
+   /**
+    * Function will create a search folder in FINDER_ROOT folder
+    * if folder exists then it will open it
+    *
+    * @see createSearchFolder($store, $openIfExists = true) function in the webaccess
+    *
+    * @return mapiFolderObject $folder created search folder
+    */
+    private function getSearchFolder() {
+        // create new or open existing search folder
+        $searchFolderRoot = $this->getSearchFoldersRoot($this->store);
+        if($searchFolderRoot === false) {
+            // error in finding search root folder
+            // or store doesn't support search folders
+            return false;
+        }
+
+        $searchFolder = $this->createSearchFolder($searchFolderRoot);
+
+        if($searchFolder !== false && mapi_last_hresult() == NOERROR) {
+            return $searchFolder;
+        }
+        return false;
+    }
+
+   /**
+    * Function will open FINDER_ROOT folder in root container
+    * public folder's don't have FINDER_ROOT folder
+    *
+    * @see getSearchFoldersRoot($store) function in the webaccess
+    *
+    * @return mapiFolderObject root folder for search folders
+    */
+    private function getSearchFoldersRoot() {
+        // check if we can create search folders
+        $storeProps = mapi_getprops($this->store, array(PR_STORE_SUPPORT_MASK, PR_FINDER_ENTRYID));
+        if(($storeProps[PR_STORE_SUPPORT_MASK] & STORE_SEARCH_OK) != STORE_SEARCH_OK) {
+            ZLog::Write(LOGLEVEL_WARN, "Store doesn't support search folders. Public store doesn't have FINDER_ROOT folder");
+            return false;
+        }
+
+        // open search folders root
+        $searchRootFolder = mapi_msgstore_openentry($this->store, $storeProps[PR_FINDER_ENTRYID]);
+        if(mapi_last_hresult() != NOERROR) {
+            ZLog::Write(LOGLEVEL_WARN, sprintf("Unable to open search folder (0x%X)", mapi_last_hresult()));
+            return false;
+        }
+
+        return $searchRootFolder;
+    }
+
+
+    /**
+     * Creates a search folder if it not exists or opens an existing one
+     * and returns it.
+     *
+     * @param mapiFolderObject $searchFolderRoot
+     *
+     * @return mapiFolderObject
+     */
+    private function createSearchFolder($searchFolderRoot) {
+        $folderName = "Z-Push Search Folder";
+        $searchFolders = mapi_folder_gethierarchytable($searchFolderRoot);
+        $restriction = array(
+            RES_CONTENT,
+            array(
+                    FUZZYLEVEL      => FL_PREFIX,
+                    ULPROPTAG       => PR_DISPLAY_NAME,
+                    VALUE           => array(PR_DISPLAY_NAME=>$folderName)
+            )
+        );
+        //restrict the hierarchy to the z-push search folder only
+        mapi_table_restrict($searchFolders, $restriction);
+        if (mapi_table_getrowcount($searchFolders)) {
+            $searchFolder = mapi_table_queryrows($searchFolders, array(PR_ENTRYID), 0, 1);
+
+            return mapi_msgstore_openentry($this->store, $searchFolder[0][PR_ENTRYID]);
+        }
+        return mapi_folder_createfolder($searchFolderRoot, $folderName, null, 0, FOLDER_SEARCH);
+    }
+
+    /**
+     * Creates a search restriction
+     *
+     * @param string $searchText
+     * @return array
+     */
+    private function getSearchRestriction($searchText) {
+        // only search emails
+        $mapiquery =
+//             array (RES_AND,
+//                 array(
+//                     array (RES_AND,
+//                          array(
+//                             array(RES_EXIST, array(ULPROPTAG => PR_MESSAGE_CLASS)),
+//                             array(RES_CONTENT, array(FUZZYLEVEL => (FL_SUBSTRING | FL_IGNORECASE), ULPROPTAG => PR_MESSAGE_CLASS, VALUE => array(PR_MESSAGE_CLASS => "IPM.Note"))),
+//                         ),
+//                     ), // RES_AND
+//                 ),
+                array (RES_OR,
+                    array (
+                        array (RES_AND,
+                             array(
+                                array(RES_EXIST, array(ULPROPTAG => PR_BODY)),
+                                array(RES_CONTENT, array(FUZZYLEVEL => (FL_SUBSTRING | FL_IGNORECASE), ULPROPTAG => PR_BODY, VALUE => array(PR_BODY => u2w($searchText)))),
+                            ),
+                        ), // RES_AND
+                        array (RES_AND,
+                            array(
+                                array(RES_EXIST, array(ULPROPTAG => PR_SUBJECT)),
+                                array(RES_CONTENT, array(FUZZYLEVEL => (FL_SUBSTRING | FL_IGNORECASE), ULPROPTAG => PR_SUBJECT, VALUE => array(PR_SUBJECT => u2w($searchText)))),
+                            ),
+                        ), // RES_AND
+                        array (RES_AND,
+                            array(
+                                array(RES_EXIST, array(ULPROPTAG => PR_DISPLAY_TO)),
+                                array(RES_CONTENT, array(FUZZYLEVEL => (FL_SUBSTRING | FL_IGNORECASE), ULPROPTAG => PR_DISPLAY_TO, VALUE => array(PR_DISPLAY_TO => u2w($searchText)))),
+                            ),
+                        ), // RES_AND
+                        array (RES_AND,
+                            array(
+                                array(RES_EXIST, array(ULPROPTAG => PR_DISPLAY_CC)),
+                                array(RES_CONTENT, array(FUZZYLEVEL => (FL_SUBSTRING | FL_IGNORECASE), ULPROPTAG => PR_DISPLAY_CC, VALUE => array(PR_DISPLAY_CC => u2w($searchText)))),
+                            ),
+                        ), // RES_AND
+                        array (RES_AND,
+                            array(
+                                array(RES_EXIST, array(ULPROPTAG => PR_SENDER_NAME)),
+                                array(RES_CONTENT, array(FUZZYLEVEL => (FL_SUBSTRING | FL_IGNORECASE), ULPROPTAG => PR_SENDER_NAME, VALUE => array(PR_SENDER_NAME => u2w($searchText)))),
+                            ),
+                        ), // RES_AND
+                        array (RES_AND,
+                            array(
+                                array(RES_EXIST, array(ULPROPTAG => PR_SENDER_EMAIL_ADDRESS)),
+                                array(RES_CONTENT, array(FUZZYLEVEL => (FL_SUBSTRING | FL_IGNORECASE), ULPROPTAG => PR_SENDER_EMAIL_ADDRESS, VALUE => array(PR_SENDER_EMAIL_ADDRESS => u2w($searchText)))),
+                            ),
+                        ), // RES_AND
+                        array (RES_AND,
+                            array(
+                                array(RES_EXIST, array(ULPROPTAG => PR_SENT_REPRESENTING_NAME)),
+                                array(RES_CONTENT, array(FUZZYLEVEL => (FL_SUBSTRING | FL_IGNORECASE), ULPROPTAG => PR_SENT_REPRESENTING_NAME, VALUE => array(PR_SENT_REPRESENTING_NAME => u2w($searchText)))),
+                            ),
+                        ), // RES_AND
+                        array (RES_AND,
+                            array(
+                                array(RES_EXIST, array(ULPROPTAG => PR_SENT_REPRESENTING_EMAIL_ADDRESS)),
+                                array(RES_CONTENT, array(FUZZYLEVEL => (FL_SUBSTRING | FL_IGNORECASE), ULPROPTAG => PR_SENT_REPRESENTING_EMAIL_ADDRESS, VALUE => array(PR_SENT_REPRESENTING_EMAIL_ADDRESS => u2w($searchText)))),
+                            ),
+                        ), // RES_AND
+                    )
+//                 ) // RES_OR
+            );// RES_AND
+
+        return $mapiquery;
+    }
 }
 
 /**

@@ -391,7 +391,7 @@ class DeviceManager {
             $folder = $message->parentid;
 
         // message was identified to be causing a loop
-        if ($this->loopdetection->IgnoreNextMessage()) {
+        if ($this->loopdetection->IgnoreNextMessage(true, $id, $folderid)) {
             $this->AnnounceIgnoredMessage($folderid, $id, $message, self::MSG_BROKEN_CAUSINGLOOP);
             return true;
         }

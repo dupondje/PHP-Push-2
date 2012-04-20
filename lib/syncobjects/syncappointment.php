@@ -75,6 +75,10 @@ class SyncAppointment extends SyncObject {
     public $asbody;
     public $nativebodytype;
 
+    // AS 14.0 props
+    public $disallownewtimeprop;
+    public $responsetype;
+    public $responserequested;
 
 
     function SyncAppointment() {
@@ -166,6 +170,12 @@ class SyncAppointment extends SyncObject {
 
             //unset these properties because airsyncbase body and attachments will be used instead
             unset($mapping[SYNC_POOMCAL_BODY], $mapping[SYNC_POOMCAL_BODYTRUNCATED]);
+        }
+
+        if(Request::GetProtocolVersion() >= 14.0) {
+            $mapping[SYNC_POOMCAL_DISALLOWNEWTIMEPROPOSAL]              = array (   self::STREAMER_VAR      => "disallownewtimeprop");
+            $mapping[SYNC_POOMCAL_RESPONSEREQUESTED]                    = array (   self::STREAMER_VAR      => "responserequested");
+            $mapping[SYNC_POOMCAL_RESPONSETYPE]                         = array (   self::STREAMER_VAR      => "responsetype");
         }
 
         parent::SyncObject($mapping);

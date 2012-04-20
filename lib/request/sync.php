@@ -213,6 +213,15 @@ class Sync extends RequestProcessor {
 
                     if(self::$decoder->getElementStartTag(SYNC_OPTIONS)) {
                         while(1) {
+                            //TODO - review - sms sync
+                            if(self::$decoder->getElementStartTag(SYNC_FOLDERTYPE)) {
+                                $foldertype = self::$decoder->getElementContent();
+                                ZLog::Write(LOGLEVEL_DEBUG, "options 1 foldertype:$foldertype");
+
+                                if(!self::$decoder->getElementEndTag())
+                                return false;
+                            }
+
                             if(self::$decoder->getElementStartTag(SYNC_FILTERTYPE)) {
                                 $cpo->SetFilterType(self::$decoder->getElementContent());
                                 if(!self::$decoder->getElementEndTag())
@@ -286,9 +295,47 @@ class Sync extends RequestProcessor {
                         }
                     }
 
+                    //TODO - review - sms sync
+                    if(self::$decoder->getElementStartTag(SYNC_OPTIONS)) {
+                        while(1) {
+                            if(self::$decoder->getElementStartTag(SYNC_FOLDERTYPE)) {
+                                $foldertype = self::$decoder->getElementContent();
+
+                                if(!self::$decoder->getElementEndTag())
+                                    return false;
+                            }
+
+                            if(self::$decoder->getElementStartTag(SYNC_FILTERTYPE)) {
+                                $cpo->SetFilterType(self::$decoder->getElementContent());
+                                if(!self::$decoder->getElementEndTag())
+                                    return false;
+                            }
+
+                            while (self::$decoder->getElementStartTag(SYNC_AIRSYNCBASE_BODYPREFERENCE)) {
+                                if(self::$decoder->getElementStartTag(SYNC_AIRSYNCBASE_TYPE)) {
+                                    $bptype = self::$decoder->getElementContent();
+                                    $cpo->BodyPreference($bptype);
+                                    if(!self::$decoder->getElementEndTag()) {
+                                        return false;
+                                    }
+                                }
+                                if(!self::$decoder->getElementEndTag())
+                                    return false;
+                            }
+
+
+                            $e = self::$decoder->peek();
+                            if($e[EN_TYPE] == EN_TYPE_ENDTAG) {
+                                self::$decoder->getElementEndTag();
+                                break;
+                            }
+                        }
+                    }
+
                     // limit items to be synchronized to the mobiles if configured
                     if (defined('SYNC_FILTERTIME_MAX') && SYNC_FILTERTIME_MAX > SYNC_FILTERTYPE_ALL &&
-                        (!$cpo->HasFilterType() || $cpo->GetFilterType() > SYNC_FILTERTIME_MAX)) {
+                        (!$cpo->HasFilterType() || $cpo->GetFilterType() == SYNC_FILTERTYPE_ALL || $cpo->GetFilterType() > SYNC_FILTERTIME_MAX)) {
+                            ZLog::Write(LOGLEVEL_DEBUG, sprintf("SYNC_FILTERTIME_MAX defined. Filter set to value: %s", SYNC_FILTERTIME_MAX));
                             $cpo->SetFilterType(SYNC_FILTERTIME_MAX);
                     }
 
@@ -681,7 +728,8 @@ class Sync extends RequestProcessor {
         self::$encoder->startTag(SYNC_SYNCHRONIZE);
         {
             // global status
-            if ($status != SYNC_STATUS_SUCCESS) {
+            // SYNC_COMMONSTATUS_* start with values from 101
+            if ($status != SYNC_COMMONSTATUS_SUCCESS && $status > 100) {
                 self::$encoder->startTag(SYNC_STATUS);
                     self::$encoder->content($status);
                 self::$encoder->endTag();
@@ -700,7 +748,7 @@ class Sync extends RequestProcessor {
 
                         // initialize exporter to get changecount
                         $changecount = 0;
-                        // TODO observe if it works correct after merge of rev 716
+
                         // TODO we could check against $sc->GetChangedFolderIds() on heartbeat so we do not need to configure all exporter again
                         if($status == SYNC_STATUS_SUCCESS && ($sc->GetParameter($cpo, "getchanges") || ! $cpo->HasSyncKey())) {
                             try {
@@ -713,16 +761,17 @@ class Sync extends RequestProcessor {
                             catch (StatusException $stex) {
                                $status = $stex->getCode();
                             }
-
                             try {
                                 // Stream the messages directly to the PDA
                                 $streamimporter = new ImportChangesStream(self::$encoder, ZPush::getSyncObjectFromFolderClass($cpo->GetContentClass()));
 
-                                $exporter->Config($sc->GetParameter($cpo, "state"));
-                                $exporter->ConfigContentParameters($cpo);
-                                $exporter->InitializeExporter($streamimporter);
+                                if ($exporter !== false) {
+                                    $exporter->Config($sc->GetParameter($cpo, "state"));
+                                    $exporter->ConfigContentParameters($cpo);
+                                    $exporter->InitializeExporter($streamimporter);
 
-                                $changecount = $exporter->GetChangeCount();
+                                    $changecount = $exporter->GetChangeCount();
+                                }
                             }
                             catch (StatusException $stex) {
                                 if ($stex->getCode() === SYNC_FSSTATUS_CODEUNKNOWN && $cpo->HasSyncKey())
@@ -730,6 +779,7 @@ class Sync extends RequestProcessor {
                                 else
                                     $status = $stex->getCode();
                             }
+
                             if (! $cpo->HasSyncKey())
                                 self::$topCollector->AnnounceInformation(sprintf("Exporter registered. %d objects queued.", $changecount), true);
                             else if ($status != SYNC_STATUS_SUCCESS)

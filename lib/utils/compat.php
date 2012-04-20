@@ -73,4 +73,17 @@ if (!function_exists("apache_request_headers")) {
     }
 }
 
+if (!function_exists("hex2bin")) {
+    /**
+     * Complementary function to bin2hex() which converts a hex entryid to a binary entryid.
+     * Since PHP 5.4 an internal hex2bin() implementation is available.
+     *
+     * @param string    $data   the hexadecimal string
+     *
+     * @returns string
+     */
+    function hex2bin($data) {
+        return pack("H*", $data);
+    }
+}
 ?>

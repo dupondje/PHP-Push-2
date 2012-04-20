@@ -173,6 +173,11 @@ class Streamer implements Serializable {
                                 if(!$decoder->getElementEndTag())
                                     return false;
                             }
+                            else if($map[self::STREAMER_TYPE] == self::STREAMER_TYPE_SEND_EMPTY) {
+                                $decoded = $decoder->getElementContent();
+                                if(!$decoder->getElementEndTag())
+                                    return false;
+                            }
                             else {
                                 $subdecoder = new $map[self::STREAMER_TYPE]();
                                 if($subdecoder->Decode($decoder) === false)

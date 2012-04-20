@@ -251,7 +251,7 @@ class MAPIProvider {
         // Do attendees
         $reciptable = mapi_message_getrecipienttable($mapimessage);
         // Only get first 256 recipients, to prevent possible load issues.
-        $rows = mapi_table_queryrows($reciptable, array(PR_DISPLAY_NAME, PR_EMAIL_ADDRESS, PR_SMTP_ADDRESS, PR_ADDRTYPE), 0, 256);
+        $rows = mapi_table_queryrows($reciptable, array(PR_DISPLAY_NAME, PR_EMAIL_ADDRESS, PR_SMTP_ADDRESS, PR_ADDRTYPE, PR_RECIPIENT_TRACKSTATUS, PR_RECIPIENT_TYPE), 0, 256);
 
         // Exception: we do not synchronize appointments with more than 250 attendees
         if (count($rows) > 250) {
@@ -283,6 +283,11 @@ class MAPIProvider {
                 }
             }
 
+            //set attendee's status and type if they're available
+            if (isset($row[PR_RECIPIENT_TRACKSTATUS]))
+                $attendee->attendeestatus = $row[PR_RECIPIENT_TRACKSTATUS];
+            if (isset($row[PR_RECIPIENT_TYPE]))
+                $attendee->attendeetype = $row[PR_RECIPIENT_TYPE];
             // Some attendees have no email or name (eg resources), and if you
             // don't send one of those fields, the phone will give an error ... so
             // we don't send it in that case.
@@ -584,6 +589,18 @@ class MAPIProvider {
             // Set sensitivity to 0 if missing
             if(!isset($message->meetingrequest->sensitivity))
                 $message->meetingrequest->sensitivity = 0;
+
+            // if a meeting request response hasn't been processed yet,
+            // do it so that the attendee status is updated on the mobile
+            if(!isset($messageprops[$emailproperties["processed"]])) {
+                $req = new Meetingrequest($this->store, $mapimessage, $this->session);
+                if ($req->isMeetingRequestResponse()) {
+                    $req->processMeetingRequestResponse();
+                }
+                if ($req->isMeetingCancellation()) {
+                    $req->processMeetingCancellation();
+                }
+            }
         }
 
         // Add attachments
@@ -1080,6 +1097,12 @@ class MAPIProvider {
 
             //open addresss book for user resolve
             $addrbook = mapi_openaddressbook($this->session);
+            //set the PR_SENT_REPRESENTING_* props so that the attendee status update also works with the webaccess
+            if (!isset($props[$appointmentprops["representingentryid"]])) {
+                $props[$appointmentprops["representingname"]] = Request::GetAuthUser();
+                $props[$appointmentprops["representingentryid"]] = mapi_createoneoff(Request::GetAuthUser(), "ZARAFA", Request::GetAuthUser());
+            }
+
             foreach($appointment->attendees as $attendee) {
                 $recip = array();
                 $recip[PR_EMAIL_ADDRESS] = u2w($attendee->email);

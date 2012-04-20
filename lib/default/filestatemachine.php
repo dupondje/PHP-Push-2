@@ -107,13 +107,14 @@ class FileStateMachine implements IStateMachine {
      * @param string    $type               the state type
      * @param string    $key                (opt)
      * @param string    $counter            (opt)
+     * @param string    $cleanstates        (opt)
      *
      * @access public
      * @return mixed
      * @throws StateNotFoundException, StateInvalidException
      */
-    public function GetState($devid, $type, $key = false, $counter = false) {
-        if ($counter)
+    public function GetState($devid, $type, $key = false, $counter = false, $cleanstates = true) {
+        if ($counter && $cleanstates)
             $this->CleanStates($devid, $type, $key, $counter);
 
         // Read current sync state

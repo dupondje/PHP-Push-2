@@ -66,6 +66,7 @@ class StateManager {
     private $statemachine;
     private $device;
     private $hierarchyOperation = false;
+    private $deleteOldStates = false;
 
     private $foldertype;
     private $uuid;
@@ -82,6 +83,7 @@ class StateManager {
     public function StateManager() {
         $this->statemachine = ZPush::GetStateMachine();
         $this->hierarchyOperation = ZPush::HierarchyCommand(Request::GetCommandCode());
+        $this->deleteOldStates = (Request::GetCommandCode() === ZPush::COMMAND_SYNC);
         $this->synchedFolders = array();
     }
 
@@ -209,7 +211,7 @@ class StateManager {
             $this->loadHierarchyCache();
 
         // the state machine will discard any sync states before this one, as they are no longer required
-        return $this->statemachine->GetState($this->device->GetDeviceId(), IStateMachine::DEFTYPE, $this->uuid, $this->oldStateCounter);
+        return $this->statemachine->GetState($this->device->GetDeviceId(), IStateMachine::DEFTYPE, $this->uuid, $this->oldStateCounter, $this->deleteOldStates);
     }
 
     /**
@@ -249,7 +251,7 @@ class StateManager {
             return false;
 
         try {
-            return $this->statemachine->GetState($this->device->GetDeviceId(), IStateMachine::FAILSAVE, $this->uuid, $this->oldStateCounter);
+            return $this->statemachine->GetState($this->device->GetDeviceId(), IStateMachine::FAILSAVE, $this->uuid, $this->oldStateCounter, $this->deleteOldStates);
         }
         catch (StateNotFoundException $snfex) {
             return false;
@@ -285,7 +287,7 @@ class StateManager {
             if (!$this->uuid)
                 throw new StateNotYetAvailableException();
 
-            return $this->statemachine->GetState($this->device->GetDeviceId(), IStateMachine::BACKENDSTORAGE, $this->uuid, $this->oldStateCounter);
+            return $this->statemachine->GetState($this->device->GetDeviceId(), IStateMachine::BACKENDSTORAGE, $this->uuid, $this->oldStateCounter, $this->deleteOldStates);
         }
         else {
             return $this->statemachine->GetState($this->device->GetDeviceId(), IStateMachine::BACKENDSTORAGE, false, $this->device->GetFirstSyncTime());
@@ -477,7 +479,7 @@ class StateManager {
             throw new StateNotFoundException("No hierarchy UUID linked to device. Requesting folder resync.");
         }
 
-        $hierarchydata = $this->statemachine->GetState($this->device->GetDeviceId(), IStateMachine::HIERARCHY, $this->uuid , $this->oldStateCounter);
+        $hierarchydata = $this->statemachine->GetState($this->device->GetDeviceId(), IStateMachine::HIERARCHY, $this->uuid , $this->oldStateCounter, $this->deleteOldStates);
         $this->device->SetHierarchyCache($hierarchydata);
         return true;
     }

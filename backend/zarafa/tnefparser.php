@@ -308,7 +308,6 @@ class TNEFParser {
         ZLog::Write(LOGLEVEL_DEBUG, "TNEF: nrprops:$nrprops");
         //loop through all the properties and add them to our internal list
         while($nrprops) {
-            ZLog::Write(LOGLEVEL_DEBUG, "TNEF: \tPROP:$nrprops");
             $hresult = $this->readSingleMapiProp($buffer, $size, $read, $mapiprops);
             if ($hresult !== NOERROR) {
                     ZLog::Write(LOGLEVEL_WARN, "TNEF: There was an error reading a mapi property.");

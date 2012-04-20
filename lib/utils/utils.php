@@ -615,18 +615,6 @@ class Utils {
 }
 
 
-/**
- * Complementary function to bin2hex() which converts a hex entryid to a binary entryid.
- * hex2bin() is not part of the Utils class
- *
- * @param string    $data   the hexadecimal string
- *
- * @returns string
- */
-function hex2bin($data) {
-    return pack("H*", $data);
-}
-
 
 // TODO Win1252/UTF8 functions are deprecated and will be removed sometime
 //if the ICS backend is loaded in CombinedBackend and Zarafa > 7

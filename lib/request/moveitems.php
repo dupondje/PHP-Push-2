@@ -95,6 +95,10 @@ class MoveItems extends RequestProcessor {
             $status = SYNC_MOVEITEMSSTATUS_SUCCESS;
             $result = false;
             try {
+                // if the source folder is an additional folder the backend has to be setup correctly
+                if (!self::$backend->Setup(ZPush::GetAdditionalSyncFolderStore($move["srcfldid"])))
+                    throw new StatusException(sprintf("HandleMoveItems() could not Setup() the backend for folder id '%s'", $move["srcfldid"]), SYNC_MOVEITEMSSTATUS_INVALIDSOURCEID);
+
                 $importer = self::$backend->GetImporter($move["srcfldid"]);
                 if ($importer === false)
                     throw new StatusException(sprintf("HandleMoveItems() could not get an importer for folder id '%s'", $move["srcfldid"]), SYNC_MOVEITEMSSTATUS_INVALIDSOURCEID);

@@ -83,6 +83,12 @@ class ItemOperations extends RequestProcessor {
             if(!self::$decoder->getElementEndTag())
                 return false;//SYNC_ITEMOPERATIONS_STORE
 
+            if(self::$decoder->getElementStartTag(SYNC_SEARCH_LONGID)) {
+                $longid = self::$decoder->getElementContent();
+                if(!self::$decoder->getElementEndTag())
+                    return false;//SYNC_SEARCH_LONGID
+            }
+
             if(self::$decoder->getElementStartTag(SYNC_FOLDERID)) {
                 $folderid = self::$decoder->getElementContent();
                 if(!self::$decoder->getElementEndTag())
@@ -107,7 +113,6 @@ class ItemOperations extends RequestProcessor {
                 //range
                 //username
                 //password
-                //airsync:mimesupport
                 //bodypartpreference
                 //rm:RightsManagementSupport
 
@@ -144,6 +149,13 @@ class ItemOperations extends RequestProcessor {
                         if(!self::$decoder->getElementEndTag())
                             return false;//SYNC_AIRSYNCBASE_BODYPREFERENCE
                     }
+
+                    if(self::$decoder->getElementStartTag(SYNC_MIMESUPPORT)) {
+                        $collection["cpo"]->SetMimeSupport(self::$decoder->getElementContent());
+                        if(!self::$decoder->getElementEndTag())
+                        return false;
+                    }
+
                     //break if it reached the endtag
                     $e = self::$decoder->peek();
                     if($e[EN_TYPE] == EN_TYPE_ENDTAG) {
@@ -192,6 +204,19 @@ class ItemOperations extends RequestProcessor {
                 self::$encoder->endTag();
 
                 $data = self::$backend->Fetch($folderid, $serverid, $collection["cpo"]);
+            }
+
+            if (isset($longid)) {
+                self::$encoder->startTag(SYNC_SEARCH_LONGID);
+                self::$encoder->content($longid);
+                self::$encoder->endTag(); // end SYNC_FOLDERID
+
+                self::$encoder->startTag(SYNC_FOLDERTYPE);
+                self::$encoder->content("Email");
+                self::$encoder->endTag();
+
+                $tmp = explode(":", $longid);
+                $data = self::$backend->Fetch($tmp[0], $tmp[1], $collection["cpo"]);
             }
 
             if (isset($filereference)) {

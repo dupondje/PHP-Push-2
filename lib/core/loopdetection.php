@@ -48,7 +48,7 @@
 
 
 class LoopDetection extends InterProcessData {
-    private $ignore_next_streamed_message;
+    private $ignore_messageid;
 
     /**
      * Constructor
@@ -61,7 +61,7 @@ class LoopDetection extends InterProcessData {
         $this->type = 1337;
         parent::__construct();
 
-        $this->ignore_next_streamed_message = false;
+        $this->ignore_messageid = false;
     }
 
     /**
@@ -118,10 +118,12 @@ class LoopDetection extends InterProcessData {
 
             // old UUID in cache - the device requested a new state!!
             else if (isset($current['type']) && $current['type'] == $type && isset($current['uuid']) && $current['uuid'] != $uuid ) {
-                ZLog::Write(LOGLEVEL_DEBUG, "LoopDetection->Detect(): UUID changed for folder changed by mobile!");
+                ZLog::Write(LOGLEVEL_DEBUG, "LoopDetection->Detect(): UUID changed for folder");
 
                 // some devices (iPhones) may request new UUIDs after broken items were sent several times
-                if (isset($current['queued']) && $current['queued'] > 0 && isset($current['maxCount']) && $current['count']+1 < $current['maxCount']) {
+                if (isset($current['queued']) && $current['queued'] > 0 &&
+                    (isset($current['maxCount']) && $current['count']+1 < $current['maxCount'] || $counter == 1)) {
+
                     ZLog::Write(LOGLEVEL_DEBUG, "LoopDetection->Detect(): UUID changed and while items where sent to device - forcing loop mode");
                     $loop = true; // force loop mode
                     $current['queued'] = $queuedMessages;
@@ -136,7 +138,7 @@ class LoopDetection extends InterProcessData {
                 unset($current['loopcount']);
                 unset($current['ignored']);
                 unset($current['maxCount']);
-
+                unset($current['potential']);
             }
 
             // see if there are values
@@ -167,6 +169,7 @@ class LoopDetection extends InterProcessData {
                             unset($current['loopcount']);
                             unset($current['ignored']);
                             unset($current['maxCount']);
+                            unset($current['potential']);
                         }
                     }
                 }
@@ -183,7 +186,8 @@ class LoopDetection extends InterProcessData {
                         // case 3.1) we have just encountered a loop!
                         ZLog::Write(LOGLEVEL_DEBUG, "LoopDetection->Detect(): case 3.1 detected - loop detected, init loop mode");
                         $current['loopcount'] = 1;
-                        $current['maxCount'] = $counter + $queuedMessages;
+                        // the MaxCount is the max number of messages exported before
+                        $current['maxCount'] = $counter + (($maxItems < $queuedMessages)? $maxItems: $queuedMessages);
                         $loop = true;   // loop mode!!
                     }
                     else if ($queuedMessages == 0) {
@@ -193,6 +197,7 @@ class LoopDetection extends InterProcessData {
                         unset($current['loopcount']);
                         unset($current['ignored']);
                         unset($current['maxCount']);
+                        unset($current['potential']);
                     }
                     else {
                         // case 3.3) still looping the same message! Increase counter
@@ -200,11 +205,9 @@ class LoopDetection extends InterProcessData {
                         $current['loopcount']++;
 
                         // case 3.3.1 - we got our broken item!
-                        if ($current['loopcount'] >= 3) {
-                            ZLog::Write(LOGLEVEL_DEBUG, "LoopDetection->Detect(): case 3.3.1 detected - broken item identified, marking to ignore it");
-
-                            $this->ignore_next_streamed_message = true;
-                            $current['ignored'] = true;
+                        if ($current['loopcount'] >= 3 && isset($current['potential'])) {
+                            ZLog::Write(LOGLEVEL_DEBUG, sprintf("LoopDetection->Detect(): case 3.3.1 detected - broken item should be next, attempt to ignore it - id '%s'", $current['potential']));
+                            $this->ignore_messageid = $current['potential'];
                         }
                         $current['maxCount'] = $counter + $queuedMessages;
                         $loop = true;   // loop mode!!
@@ -213,7 +216,7 @@ class LoopDetection extends InterProcessData {
 
             }
             if (isset($current['loopcount']))
-                ZLog::Write(LOGLEVEL_DEBUG, sprintf("LoopDetection->Detect(): loop data: loopcount(%d), maxCount(%d), queued(%d), ignored(%s)", $current['loopcount'], $current['maxCount'], $current['queued'], (isset($current['ignored'])?'true':'false')));
+                ZLog::Write(LOGLEVEL_DEBUG, sprintf("LoopDetection->Detect(): loop data: loopcount(%d), maxCount(%d), queued(%d), ignored(%s)", $current['loopcount'], $current['maxCount'], $current['queued'], (isset($current['ignored'])?$current['ignored']:'false')));
 
             // update loop data
             $loopdata[self::$devid][self::$user][$folderid] = $current;
@@ -223,11 +226,8 @@ class LoopDetection extends InterProcessData {
         }
         // end exclusive block
 
-        if ($loop == true && $this->ignore_next_streamed_message == false) {
+        if ($loop == true && $this->ignore_messageid == false) {
             ZPush::GetTopCollector()->AnnounceInformation("Loop detection", true);
-        }
-        else if ($loop == true && $this->ignore_next_streamed_message == true) {
-            ZPush::GetTopCollector()->AnnounceInformation("Broken message identified", true);
         }
 
         return $loop;
@@ -236,18 +236,87 @@ class LoopDetection extends InterProcessData {
     /**
      * Indicates if the next messages should be ignored (not be sent to the mobile!)
      *
+     * @param string  $messageid        (opt) id of the message which is to be exported next
+     * @param string  $folderid         (opt) parent id of the message
      * @param boolean $markAsIgnored    (opt) to peek without setting the next message to be
      *                                  ignored, set this value to false
      * @access public
      * @return boolean
      */
-    public function IgnoreNextMessage($markAsIgnored = true) {
-        if (Request::GetCommandCode() == ZPush::COMMAND_SYNC && $this->ignore_next_streamed_message === true) {
-            if ($markAsIgnored)
-                $this->ignore_next_streamed_message = false;
-            return true;
+    public function IgnoreNextMessage($markAsIgnored = true, $messageid = false, $folderid = false) {
+        // as the next message id is not available at all point this method is called, we use different indicators.
+        // potentialbroken indicates that we know that the broken message should be exported next,
+        // alltho we do not know for sure as it's export message orders can change
+        // if the $messageid is available and matches then we are sure and only then really ignore it
+
+        $potentialBroken = false;
+        $realBroken = false;
+        if (Request::GetCommandCode() == ZPush::COMMAND_SYNC && $this->ignore_messageid !== false)
+            $potentialBroken = true;
+
+        if ($messageid !== false && $this->ignore_messageid == $messageid)
+            $realBroken = true;
+
+        // this call is just to know what should be happening
+        // no further actions necessary
+        if ($markAsIgnored === false) {
+            return $potentialBroken;
         }
-        return false;
+
+        // we should really do something here
+
+        // first we check if we are in the loop mode, if so,
+        // we update the potential broken id message so we loop count the same message
+
+        $changedData = false;
+        // exclusive block
+        if ($this->blockMutex()) {
+            $loopdata = ($this->hasData()) ? $this->getData() : array();
+
+            // check and initialize the array structure
+            $this->checkArrayStructure($loopdata, $folderid);
+
+            $current = $loopdata[self::$devid][self::$user][$folderid];
+
+            // we found our broken message!
+            if ($realBroken) {
+                $this->ignore_messageid = false;
+                $current['ignored'] = $messageid;
+                $changedData = true;
+            }
+            // not the broken message yet
+            else {
+                // update potential id if looping on an item
+                if (isset($current['loopcount'])) {
+                    $current['potential'] = $messageid;
+
+                    // this message should be the broken one, but is not!!
+                    // we should reset the loop count because this is certainly not the broken one
+                    if ($potentialBroken) {
+                        $current['loopcount'] = 1;
+                        ZLog::Write(LOGLEVEL_DEBUG, "LoopDetection->IgnoreNextMessage(): this should be the broken one, but is not! Resetting loop count.");
+                    }
+
+                    ZLog::Write(LOGLEVEL_DEBUG, sprintf("LoopDetection->IgnoreNextMessage(): Loop mode, potential broken message id '%s'", $current['potential']));
+
+                    $changedData = true;
+                }
+            }
+
+            // update loop data
+            if ($changedData == true) {
+                $loopdata[self::$devid][self::$user][$folderid] = $current;
+                $ok = $this->setData($loopdata);
+            }
+
+            $this->releaseMutex();
+        }
+        // end exclusive block
+
+        if ($realBroken)
+            ZPush::GetTopCollector()->AnnounceInformation("Broken message ignored", true);
+
+        return $realBroken;
     }
 
     /**

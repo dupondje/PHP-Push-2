@@ -92,12 +92,13 @@ interface IStateMachine {
      * @param string    $type               the state type
      * @param string    $key                (opt)
      * @param string    $counter            (opt)
+     * @param string    $cleanstates        (opt)
      *
      * @access public
      * @return mixed
      * @throws StateNotFoundException, StateInvalidException
      */
-    public function GetState($devid, $type, $key = false, $counter = false);
+    public function GetState($devid, $type, $key = false, $counter = false, $cleanstates = true);
 
     /**
      * Writes ta state to for a key and counter

@@ -383,11 +383,16 @@ class ImportChangesICS implements IImportChanges {
         if (!$srcmessage)
             throw new StatusException(sprintf("ImportChangesICS->ImportMessageMove('%s','%s'): Error, unable to open source message: 0x%X", $id, $newfolder, mapi_last_hresult()), SYNC_MOVEITEMSSTATUS_INVALIDSOURCEID);
 
-        $dstentryid = mapi_msgstore_entryidfromsourcekey($this->store, hex2bin($newfolder));
+        // get correct mapi store for the destination folder
+        $dststore = ZPush::GetBackend()->GetMAPIStoreForFolderId(ZPush::GetAdditionalSyncFolderStore($newfolder), $newfolder);
+        if ($dststore === false)
+            throw new StatusException(sprintf("ImportChangesICS->ImportMessageMove('%s','%s'): Error, unable to open store of destination folder", $id, $newfolder), SYNC_MOVEITEMSSTATUS_INVALIDDESTID);
+
+        $dstentryid = mapi_msgstore_entryidfromsourcekey($dststore, hex2bin($newfolder));
         if(!$dstentryid)
             throw new StatusException(sprintf("ImportChangesICS->ImportMessageMove('%s','%s'): Error, unable to resolve destination folder", $id, $newfolder), SYNC_MOVEITEMSSTATUS_INVALIDDESTID);
 
-        $dstfolder = mapi_msgstore_openentry($this->store, $dstentryid);
+        $dstfolder = mapi_msgstore_openentry($dststore, $dstentryid);
         if(!$dstfolder)
             throw new StatusException(sprintf("ImportChangesICS->ImportMessageMove('%s','%s'): Error, unable to open destination folder", $id, $newfolder), SYNC_MOVEITEMSSTATUS_INVALIDDESTID);
 

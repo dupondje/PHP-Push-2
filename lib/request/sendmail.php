@@ -55,7 +55,7 @@ class SendMail extends RequestProcessor {
         $status = SYNC_COMMONSTATUS_SUCCESS;
         $sm = new SyncSendMail();
 
-        $reply = $forward = $parent = false;
+        $reply = $forward = $parent = $sendmail = $smartreply = $smartforward = false;
         if (Request::GetGETCollectionId())
             $parent = Request::GetGETCollectionId();
         if ($commandCode == ZPush::COMMAND_SMARTFORWARD)
@@ -69,7 +69,7 @@ class SendMail extends RequestProcessor {
             if($el[EN_TYPE] != EN_TYPE_STARTTAG)
                 return false;
 
-            $sendmail = $smartreply = $smartforward = false;
+
             if($el[EN_TAG] == SYNC_COMPOSEMAIL_SENDMAIL)
                 $sendmail = true;
             else if($el[EN_TAG] == SYNC_COMPOSEMAIL_SMARTREPLY)

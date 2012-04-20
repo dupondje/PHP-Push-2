@@ -572,7 +572,11 @@ class ZPushAdminCLI {
         else {
             printf("%d messages need attention because they could not be synchronized\n", count($device->ignoredmessages));
             foreach ($device->ignoredmessages as $im) {
-                $info = sprintf("Subject: '%s'", $im->asobject->subject);
+                $info = "";
+                if (isset($im->asobject->subject))
+                    $info .= sprintf("Subject: '%s'", $im->asobject->subject);
+                if (isset($im->asobject->fileas))
+                    $info .= sprintf("FileAs: '%s'", $im->asobject->fileas);
                 if (isset($im->asobject->from))
                     $info .= sprintf(" - From: '%s'", $im->asobject->from);
                 if (isset($im->asobject->starttime))

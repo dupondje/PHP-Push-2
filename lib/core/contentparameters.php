@@ -3,8 +3,7 @@
 * File      :   contentparameters.php
 * Project   :   Z-Push
 * Descr     :   Simple transportation class for
-*               requested content parameters and information
-*               about the containing folder
+*               requested content parameter options
 *
 * Created   :   11.04.2011
 *
@@ -46,15 +45,14 @@
 
 class ContentParameters extends StateObject {
     protected $unsetdata = array(   'contentclass' => false,
-                                    'folderid' => false,
-                                    'windowsize' => 10,
+                                    'foldertype' => '',
                                     'conflict' => false,
                                     'deletesasmoves' => true,
                                     'filtertype' => false,
                                     'truncation' => false,
                                     'rtftruncation' => false,
                                     'mimesupport' => false,
-                                    'conversationmode' => false
+                                    'conversationmode' => false,
                                 );
 
     private $synckeyChanged = false;
@@ -63,8 +61,6 @@ class ContentParameters extends StateObject {
      * Expected magic getters and setters
      *
      * GetContentClass() + SetContentClass()
-     * GetFolderId() + SetFolderId()
-     * GetWindowSize() + SetWindowSize()
      * GetConflict() + SetConflict()
      * GetDeletesAsMoves() + SetDeletesAsMoves()
      * GetFilterType() + SetFilterType()
@@ -76,139 +72,18 @@ class ContentParameters extends StateObject {
      */
 
     /**
-     * SyncKey methods
-     *
-     * The current and next synckey is saved as uuid and counter in the CPO
-     * so partial and ping can access the latest states.
-     */
-
-    /**
-     * Returns the latest SyncKey of this folder
+     * Overwrite StateObject->__call so we are able to handle ContentParameters->BodyPreference()
      *
      * @access public
-     * @return string/boolean       false if no uuid/counter available
+     * @return mixed
      */
-    public function GetSyncKey() {
-        if (isset($this->uuid) && isset($this->uuidCounter))
-            return StateManager::BuildStateKey($this->uuid, $this->uuidCounter);
+    public function __call($name, $arguments) {
+        if ($name === "BodyPreference")
+            return $this->BodyPreference($arguments[0]);
 
-        return false;
+        return parent::__call($name, $arguments);
     }
 
-    /**
-     * Sets the the current synckey.
-     * This is done by parsing it and saving uuid and counter.
-     * By setting the current key, the "next" key is obsolete
-     *
-     * @param string    $synckey
-     *
-     * @access public
-     * @return boolean
-     */
-    public function SetSyncKey($synckey) {
-        list($this->uuid, $this->uuidCounter) = StateManager::ParseStateKey($synckey);
-
-        // remove newSyncKey
-        unset($this->uuidNewCounter);
-
-        return true;
-    }
-
-    /**
-     * Indicates if this folder has a synckey
-     *
-     * @access public
-     * @return booleans
-     */
-    public function HasSyncKey() {
-        return (isset($this->uuid) && isset($this->uuidCounter));
-    }
-
-    /**
-     * Sets the the next synckey.
-     * This is done by parsing it and saving uuid and next counter.
-     * if the folder has no synckey until now (new sync), the next counter becomes current asl well.
-     *
-     * @param string    $synckey
-     *
-     * @access public
-     * @throws FatalException       if the uuids of current and next do not match
-     * @return boolean
-     */
-    public function SetNewSyncKey($synckey) {
-        list($uuid, $uuidNewCounter) = StateManager::ParseStateKey($synckey);
-        if (!$this->HasSyncKey()) {
-            $this->uuid = $uuid;
-            $this->uuidCounter = $uuidNewCounter;
-        }
-        else if ($uuid !== $this->uuid)
-            throw new FatalException("ContentParameters->SetNewSyncKey(): new SyncKey must have the same UUID as current SyncKey");
-
-        $this->uuidNewCounter = $uuidNewCounter;
-        $this->synckeyChanged = true;
-    }
-
-    /**
-     * Returns the next synckey
-     *
-     * @access public
-     * @return string/boolean       returns false if uuid or counter are not available
-     */
-    public function GetNewSyncKey() {
-        if (isset($this->uuid) && isset($this->uuidNewCounter))
-            return StateManager::BuildStateKey($this->uuid, $this->uuidNewCounter);
-
-        return false;
-    }
-
-    /**
-     * Indicates if the folder has a next synckey
-     *
-     * @access public
-     * @return boolean
-     */
-    public function HasNewSyncKey() {
-        return (isset($this->uuid) && isset($this->uuidNewCounter));
-    }
-
-    /**
-     * Return the latest synckey.
-     * When this is called the new key becomes the current key (if a new key is available).
-     * The current key is then returned.
-     *
-     * @access public
-     * @return string
-     */
-    public function GetLatestSyncKey() {
-        // New becomes old
-        if ($this->HasUuidNewCounter()) {
-            $this->uuidCounter = $this->uuidNewCounter;
-            unset($this->uuidNewCounter);
-        }
-
-        ZLog::Write(LOGLEVEL_DEBUG, sprintf("ContentParameters->GetLastestSyncKey(): '%s'", $this->GetSyncKey()));
-        return $this->GetSyncKey();
-    }
-
-    /**
-     * Removes the saved SyncKey of this folder
-     *
-     * @access public
-     * @return boolean
-     */
-    public function RemoveSyncKey() {
-        if (isset($this->uuid))
-            unset($this->uuid);
-
-        if (isset($this->uuidCounter))
-            unset($this->uuidCounter);
-
-        if (isset($this->uuidNewCounter))
-            unset($this->uuidNewCounter);
-
-        ZLog::Write(LOGLEVEL_DEBUG, "ContentParameters->RemoveSyncKey(): saved sync key removed");
-        return true;
-    }
 
     /**
      * Instantiates/returns the bodypreference object for a type
@@ -263,29 +138,4 @@ class ContentParameters extends StateObject {
     }
 }
 
-
-class BodyPreference extends StateObject {
-    protected $unsetdata = array(   'truncationsize' => false,
-                                    'allornone' => false,
-                                    'preview' => false,
-                                );
-
-    /**
-     * expected magic getters and setters
-     *
-     * GetTruncationSize() + SetTruncationSize()
-     * GetAllOrNone() + SetAllOrNone()
-     * GetPreview() + SetPreview()
-     */
-
-    /**
-     * Indicates if this object has values
-     *
-     * @access public
-     * @return boolean
-     */
-    public function HasValues() {
-        return (count($this->data) > 0);
-    }
-}
 ?>

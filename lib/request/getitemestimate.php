@@ -63,16 +63,16 @@ class GetItemEstimate extends RequestProcessor {
             return false;
 
         while(self::$decoder->getElementStartTag(SYNC_GETITEMESTIMATE_FOLDER)) {
-            $cpo = new ContentParameters();
-            $cpostatus = false;
+            $spa = new SyncParameters();
+            $spastatus = false;
 
             if (Request::GetProtocolVersion() >= 14.0) {
                 if(self::$decoder->getElementStartTag(SYNC_SYNCKEY)) {
                     try {
-                        $cpo->SetSyncKey(self::$decoder->getElementContent());
+                        $spa->SetSyncKey(self::$decoder->getElementContent());
                     }
                     catch (StateInvalidException $siex) {
-                        $cpostatus = SYNC_GETITEMESTSTATUS_SYNCSTATENOTPRIMED;
+                        $spastatus = SYNC_GETITEMESTSTATUS_SYNCSTATENOTPRIMED;
                     }
 
                     if(!self::$decoder->getElementEndTag())
@@ -80,7 +80,7 @@ class GetItemEstimate extends RequestProcessor {
                 }
 
                 if(self::$decoder->getElementStartTag(SYNC_GETITEMESTIMATE_FOLDERID)) {
-                    $cpo->SetFolderId( self::$decoder->getElementContent());
+                    $spa->SetFolderId( self::$decoder->getElementContent());
 
                     if(!self::$decoder->getElementEndTag())
                         return false;
@@ -88,9 +88,9 @@ class GetItemEstimate extends RequestProcessor {
 
                 // conversation mode requested
                 if(self::$decoder->getElementStartTag(SYNC_CONVERSATIONMODE)) {
-                    $cpo->SetConversationMode(true);
+                    $spa->SetConversationMode(true);
                     if(($conversationmode = self::$decoder->getElementContent()) !== false) {
-                        $cpo->SetConversationMode((boolean)$conversationmode);
+                        $spa->SetConversationMode((boolean)$conversationmode);
                         if(!self::$decoder->getElementEndTag())
                             return false;
                     }
@@ -99,19 +99,19 @@ class GetItemEstimate extends RequestProcessor {
                 if(self::$decoder->getElementStartTag(SYNC_OPTIONS)) {
                     while(1) {
                         if(self::$decoder->getElementStartTag(SYNC_FILTERTYPE)) {
-                            $cpo->SetFilterType(self::$decoder->getElementContent());
+                            $spa->SetFilterType(self::$decoder->getElementContent());
                             if(!self::$decoder->getElementEndTag())
                                 return false;
                         }
 
                         if(self::$decoder->getElementStartTag(SYNC_FOLDERTYPE)) {
-                            $cpo->SetContentClass(self::$decoder->getElementContent());
+                            $spa->SetContentClass(self::$decoder->getElementContent());
                             if(!self::$decoder->getElementEndTag())
                                 return false;
                         }
 
                         if(self::$decoder->getElementStartTag(SYNC_MAXITEMS)) {
-                            $cpo->SetWindowSize($maxitems = self::$decoder->getElementContent());
+                            $spa->SetWindowSize($maxitems = self::$decoder->getElementContent());
                             if(!self::$decoder->getElementEndTag())
                                 return false;
                         }
@@ -127,14 +127,14 @@ class GetItemEstimate extends RequestProcessor {
             else {
                 //get items estimate does not necessarily send the folder type
                 if(self::$decoder->getElementStartTag(SYNC_GETITEMESTIMATE_FOLDERTYPE)) {
-                    $cpo->SetContentClass(self::$decoder->getElementContent());
+                    $spa->SetContentClass(self::$decoder->getElementContent());
 
                     if(!self::$decoder->getElementEndTag())
                         return false;
                 }
 
                 if(self::$decoder->getElementStartTag(SYNC_GETITEMESTIMATE_FOLDERID)) {
-                    $cpo->SetFolderId(self::$decoder->getElementContent());
+                    $spa->SetFolderId(self::$decoder->getElementContent());
 
                     if(!self::$decoder->getElementEndTag())
                         return false;
@@ -143,7 +143,7 @@ class GetItemEstimate extends RequestProcessor {
                 if(!self::$decoder->getElementStartTag(SYNC_FILTERTYPE))
                     return false;
 
-                $cpo->SetFilterType(self::$decoder->getElementContent());
+                $spa->SetFilterType(self::$decoder->getElementContent());
 
                 if(!self::$decoder->getElementEndTag())
                     return false;
@@ -152,10 +152,10 @@ class GetItemEstimate extends RequestProcessor {
                     return false;
 
                 try {
-                    $cpo->SetSyncKey(self::$decoder->getElementContent());
+                    $spa->SetSyncKey(self::$decoder->getElementContent());
                 }
                 catch (StateInvalidException $siex) {
-                    $cpostatus = SYNC_GETITEMESTSTATUS_SYNCSTATENOTPRIMED;
+                    $spastatus = SYNC_GETITEMESTSTATUS_SYNCSTATENOTPRIMED;
                 }
 
                 if(!self::$decoder->getElementEndTag())
@@ -168,35 +168,48 @@ class GetItemEstimate extends RequestProcessor {
             // Process folder data
 
             //In AS 14 request only collectionid is sent, without class
-            if (! $cpo->HasContentClass() && $cpo->HasFolderId())
-                $cpo->SetContentClass(self::$deviceManager->GetFolderClassFromCacheByID($cpo->GetFolderId()));
+            if (! $spa->HasContentClass() && $spa->HasFolderId())
+                $spa->SetContentClass(self::$deviceManager->GetFolderClassFromCacheByID($spa->GetFolderId()));
 
             // compatibility mode AS 1.0 - get folderid which was sent during GetHierarchy()
-            if (! $cpo->HasFolderId() && $cpo->HasContentClass()) {
-                $cpo->SetFolderId(self::$deviceManager->GetFolderIdFromCacheByClass($cpo->GetContentClass()));
+            if (! $spa->HasFolderId() && $spa->HasContentClass()) {
+                $spa->SetFolderId(self::$deviceManager->GetFolderIdFromCacheByClass($spa->GetContentClass()));
             }
 
             // Add collection to SC and load state
-            $sc->AddCollection($cpo);
-            if ($cpostatus) {
+            $sc->AddCollection($spa);
+            if ($spastatus) {
                 // the CPO has a folder id now, so we can set the status
-                $sc->AddParameter($cpo, "status", $cpostatus);
+                $sc->AddParameter($spa, "status", $spastatus);
             }
             else {
                 try {
-                    $sc->AddParameter($cpo, "state", self::$deviceManager->GetStateManager()->GetSyncState($cpo->GetSyncKey()));
+                    $sc->AddParameter($spa, "state", self::$deviceManager->GetStateManager()->GetSyncState($spa->GetSyncKey()));
 
                     // if this is an additional folder the backend has to be setup correctly
-                    if (!self::$backend->Setup(ZPush::GetAdditionalSyncFolderStore($cpo->GetFolderId())))
-                        throw new StatusException(sprintf("HandleSync() could not Setup() the backend for folder id '%s'", $cpo->GetFolderId()), SYNC_STATUS_FOLDERHIERARCHYCHANGED);
+                    if (!self::$backend->Setup(ZPush::GetAdditionalSyncFolderStore($spa->GetFolderId())))
+                        throw new StatusException(sprintf("HandleGetItemEstimate() could not Setup() the backend for folder id '%s'", $spa->GetFolderId()), SYNC_GETITEMESTSTATUS_COLLECTIONINVALID);
                 }
                 catch (StateNotFoundException $snfex) {
-                    $sc->AddParameter($cpo, "status", SYNC_GETITEMESTSTATUS_SYNCKKEYINVALID);
-                    self::$topCollector->AnnounceInformation("StateNotFoundException", true);
+                    // ok, the key is invalid. Question is, if the hierarchycache is still ok
+                    //if not, we have to issue SYNC_GETITEMESTSTATUS_COLLECTIONINVALID which triggers a FolderSync
+                    try {
+                        self::$deviceManager->GetFolderClassFromCacheByID($spa->GetFolderId());
+                        // we got here, so the HierarchyCache is ok
+                        $sc->AddParameter($spa, "status", SYNC_GETITEMESTSTATUS_SYNCKKEYINVALID);
+                    }
+                    catch (NoHierarchyCacheAvailableException $nhca) {
+                        $sc->AddParameter($spa, "status", SYNC_GETITEMESTSTATUS_COLLECTIONINVALID);
+                    }
+
+                    self::$topCollector->AnnounceInformation("StateNotFoundException ". $sc->GetParameter($spa, "status"), true);
                 }
                 catch (StatusException $stex) {
-                    $sc->AddParameter($cpo, "status", SYNC_GETITEMESTSTATUS_SYNCSTATENOTPRIMED);
-                    self::$topCollector->AnnounceInformation("StatusException SYNCSTATENOTPRIMED", true);
+                    if ($stex->getCode() == SYNC_GETITEMESTSTATUS_COLLECTIONINVALID)
+                        $sc->AddParameter($spa, "status", SYNC_GETITEMESTSTATUS_COLLECTIONINVALID);
+                    else
+                        $sc->AddParameter($spa, "status", SYNC_GETITEMESTSTATUS_SYNCSTATENOTPRIMED);
+                    self::$topCollector->AnnounceInformation("StatusException ". $sc->GetParameter($spa, "status"), true);
                 }
             }
         }
@@ -220,11 +233,11 @@ class GetItemEstimate extends RequestProcessor {
             }
             $changes = $sc->GetChangedFolderIds();
 
-            foreach($sc as $folderid => $cpo) {
+            foreach($sc as $folderid => $spa) {
                 self::$encoder->startTag(SYNC_GETITEMESTIMATE_RESPONSE);
                 {
-                    if ($sc->GetParameter($cpo, "status"))
-                        $status = $sc->GetParameter($cpo, "status");
+                    if ($sc->GetParameter($spa, "status"))
+                        $status = $sc->GetParameter($spa, "status");
 
                     self::$encoder->startTag(SYNC_GETITEMESTIMATE_STATUS);
                     self::$encoder->content($status);
@@ -233,11 +246,11 @@ class GetItemEstimate extends RequestProcessor {
                     self::$encoder->startTag(SYNC_GETITEMESTIMATE_FOLDER);
                     {
                         self::$encoder->startTag(SYNC_GETITEMESTIMATE_FOLDERTYPE);
-                        self::$encoder->content($cpo->GetContentClass());
+                        self::$encoder->content($spa->GetContentClass());
                         self::$encoder->endTag();
 
                         self::$encoder->startTag(SYNC_GETITEMESTIMATE_FOLDERID);
-                        self::$encoder->content($cpo->GetFolderId());
+                        self::$encoder->content($spa->GetFolderId());
                         self::$encoder->endTag();
 
                         if (isset($changes[$folderid]) && $changes[$folderid] !== false) {
@@ -246,7 +259,7 @@ class GetItemEstimate extends RequestProcessor {
                             self::$encoder->endTag();
 
                             if ($changes[$folderid] > 0)
-                                self::$topCollector->AnnounceInformation(sprintf("%s %d changes", $cpo->GetContentClass(), $changes[$folderid]), true);
+                                self::$topCollector->AnnounceInformation(sprintf("%s %d changes", $spa->GetContentClass(), $changes[$folderid]), true);
                         }
                     }
                     self::$encoder->endTag();

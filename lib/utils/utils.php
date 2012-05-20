@@ -291,7 +291,14 @@ class Utils {
                 return 2*1024;
             case SYNC_TRUNCATION_5K:
                 return 5*1024;
-            case SYNC_TRUNCATION_SEVEN:
+            case SYNC_TRUNCATION_10K:
+                return 10*1024;
+            case SYNC_TRUNCATION_20K:
+                return 20*1024;
+            case SYNC_TRUNCATION_50K:
+                return 50*1024;
+            case SYNC_TRUNCATION_100K:
+                return 100*1024;
             case SYNC_TRUNCATION_ALL:
                 return 1024*1024; // We'll limit to 1MB anyway
             default:
@@ -454,7 +461,7 @@ class Utils {
      * @return boolean
      */
     static public function CheckEmail($email) {
-        return (bool) preg_match('#([a-zA-Z0-9_\-])+(\.([a-zA-Z0-9_\-])+)*@((\[(((([0-1])?([0-9])?[0-9])|(2[0-4][0-9])|(2[0-5][0-5])))\.(((([0-1])?([0-9])?[0-9])|(2[0-4][0-9])|(2[0-5][0-5])))\.(((([0-1])?([0-9])?[0-9])|(2[0-4][0-9])|(2[0-5][0-5])))\.(((([0-1])?([0-9])?[0-9])|(2[0-4][0-9])|(2[0-5][0-5]))\]))|((([a-zA-Z0-9])+(([\-])+([a-zA-Z0-9])+)*\.)+([a-zA-Z])+(([\-])+([a-zA-Z0-9])+)*))#', $email);
+        return (bool) preg_match('#([a-zA-Z0-9_\-])+(\.([a-zA-Z0-9_\-])+)*@((\[(((([0-1])?([0-9])?[0-9])|(2[0-4][0-9])|(2[0-5][0-5])))\.(((([0-1])?([0-9])?[0-9])|(2[0-4][0-9])|(2[0-5][0-5])))\.(((([0-1])?([0-9])?[0-9])|(2[0-4][0-9])|(2[0-5][0-5])))\.(((([0-1])?([0-9])?[0-9])|(2[0-4][0-9])|(2[0-5][0-5]))\]))|((([a-zA-Z0-9])+(([\-])+([a-zA-Z0-9])+)*\.)+([a-zA-Z])+(([\-])+([a-zA-Z0-9])+)*)|localhost)#', $email);
     }
 
     /**

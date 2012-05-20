@@ -70,6 +70,8 @@ include_once('lib/core/streamimporter.php');
 include_once('lib/core/synccollections.php');
 include_once('lib/core/hierarchycache.php');
 include_once('lib/core/changesmemorywrapper.php');
+include_once('lib/core/syncparameters.php');
+include_once('lib/core/bodypreference.php');
 include_once('lib/core/contentparameters.php');
 include_once('lib/wbxml/wbxmldefs.php');
 include_once('lib/wbxml/wbxmldecoder.php');
@@ -162,7 +164,15 @@ include_once('version.php');
             throw new NoPostRequestException("This is the Z-Push location and can only be accessed by Microsoft ActiveSync-capable devices", NoPostRequestException::GET_REQUEST);
 
         // Do the actual request
-        header(ZPush::getServerHeader());
+        header(ZPush::GetServerHeader());
+
+        // announce the supported AS versions (if not already sent to device)
+        if (ZPush::GetDeviceManager()->AnnounceASVersion()) {
+            $versions = ZPush::GetSupportedProtocolVersions(true);
+            ZLog::Write(LOGLEVEL_INFO, sprintf("Announcing latest AS version to device: %s", $versions));
+            header("X-MS-RP: ". $versions);
+        }
+
         RequestProcessor::Initialize();
         if(!RequestProcessor::HandleRequest())
             throw new WBXMLException(ZLog::GetWBXMLDebugInfo());
@@ -184,6 +194,12 @@ include_once('version.php');
         // the buffer.
         if(!headers_sent())
             header("Content-Length: $len");
+
+        // send vnd.ms-sync.wbxml content type header if there is no content
+        // otherwise text/html content type is added which might break some devices
+        if ($len == 0)
+            header("Content-Type: application/vnd.ms-sync.wbxml");
+
         print $data;
 
         // destruct backend after all data is on the stream
@@ -241,8 +257,11 @@ include_once('version.php');
             ZPush::PrintZPushLegal($exclass . $cmdinfo, sprintf('<pre>%s</pre>',$ex->getMessage() . $trace));
         }
 
+        // Announce exception to process loop detection
+        ZPush::GetDeviceManager()->AnnounceProcessException($ex);
+
         // Announce exception if the TopCollector if available
-         ZPush::GetTopCollector()->AnnounceInformation(get_class($ex), true);
+        ZPush::GetTopCollector()->AnnounceInformation(get_class($ex), true);
     }
 
     // save device data if the DeviceManager is available

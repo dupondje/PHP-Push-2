@@ -47,6 +47,8 @@
 include('lib/core/zpushdefs.php');
 include('lib/core/zpush.php');
 include('lib/core/stateobject.php');
+include('lib/core/syncparameters.php');
+include('lib/core/bodypreference.php');
 include('lib/core/contentparameters.php');
 include('lib/core/synccollections.php');
 include('lib/core/zlog.php');
@@ -566,7 +568,10 @@ class ZPushAdminCLI {
         echo "Wiped on:\t\t". ($device->GetWipeActionOn() ? strftime("%Y-%m-%d %H:%M", $device->GetWipeActionOn()) : "not set")."\n";
 
         echo "Attention needed:\t";
-        if (!isset($device->ignoredmessages) || empty($device->ignoredmessages)) {
+
+        if ($device->GetDeviceError())
+            echo $device->GetDeviceError() ."\n";
+        else if (!isset($device->ignoredmessages) || empty($device->ignoredmessages)) {
             echo "No errors known\n";
         }
         else {

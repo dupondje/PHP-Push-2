@@ -65,6 +65,7 @@ class ASDevice extends StateObject {
                                     'forcesave' => false,
                                     'asversion' => false,
                                     'ignoredmessages' => array(),
+                                    'announcedASversion' => false,
                                 );
 
     static private $loadedData;
@@ -316,7 +317,7 @@ class ASDevice extends StateObject {
      * @param StateObject   $ignoredMessage
      *
      * @access public
-     * @return string
+     * @return boolean
      */
     public function AddIgnoredMessage($ignoredMessage) {
         // we should have all previousily ignored messages in an id array
@@ -363,7 +364,7 @@ class ASDevice extends StateObject {
      * @param string    $id             message id
      *
      * @access public
-     * @return string
+     * @return boolean
      */
     public function RemoveIgnoredMessage($folderid, $id) {
         // we should have all previousily ignored messages in an id array
@@ -399,6 +400,37 @@ class ASDevice extends StateObject {
                     }
                 }
                 $this->ignoredMessages = $newMessages;
+            }
+        }
+
+        return $foundMessage;
+    }
+
+    /**
+     * Indicates if a message is in the list of ignored messages
+     *
+     * @param string    $folderid       parent folder id of the message
+     * @param string    $id             message id
+     *
+     * @access public
+     * @return boolean
+     */
+    public function HasIgnoredMessage($folderid, $id) {
+        // we should have all previousily ignored messages in an id array
+        if (count($this->ignoredMessages) != count($this->ignoredMessageIds)) {
+            foreach($this->ignoredMessages as $oldMessage) {
+                if (!isset($this->ignoredMessageIds[$oldMessage->folderid]))
+                    $this->ignoredMessageIds[$oldMessage->folderid] = array();
+                $this->ignoredMessageIds[$oldMessage->folderid][] = $oldMessage->id;
+            }
+        }
+
+        $foundMessage = false;
+        // there are ignored messages in that folder
+        if (isset($this->ignoredMessageIds[$folderid])) {
+            // resync of a folder.. we should remove all previousily ignored messages
+            if ($id === false || in_array($id, $this->ignoredMessageIds[$folderid], true)) {
+                $foundMessage = true;
             }
         }
 

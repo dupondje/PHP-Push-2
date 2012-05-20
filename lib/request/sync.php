@@ -81,7 +81,7 @@ class Sync extends RequestProcessor {
                     $actiondata["fetchids"] = array();
                     $actiondata["statusids"] = array();
 
-                    // read class, synckey and folderid without CPO for now
+                    // read class, synckey and folderid without SyncParameters Object for now
                     $class = $synckey = $folderid = false;
 
                     //for AS versions < 2.5
@@ -113,26 +113,39 @@ class Sync extends RequestProcessor {
                         $folderid = self::$deviceManager->GetFolderIdFromCacheByClass($class);
                     }
 
-                    // folderid HAS TO BE known by now, so we retrieve the correct CPO for an update
-                    $cpo = self::$deviceManager->GetStateManager()->GetSynchedFolderState($folderid);
+                    // folderid HAS TO BE known by now, so we retrieve the correct SyncParameters object for an update
+                    try {
+                        $spa = self::$deviceManager->GetStateManager()->GetSynchedFolderState($folderid);
+
+                        // TODO remove resync of folders for < Z-Push 2 beta4 users
+                        // this forces a resync of all states previous to Z-Push 2 beta4
+                        if (! $spa instanceof SyncParameters)
+                            throw new StateInvalidException("Saved state are not of type SyncParameters");
+
+                        // new/resync requested
+                        if ($synckey == "0")
+                            $spa->RemoveSyncKey();
+                        else if ($synckey !== false)
+                            $spa->SetSyncKey($synckey);
+                    }
+                    catch (StateInvalidException $stie) {
+                        $spa = new SyncParameters();
+                        $status = SYNC_STATUS_INVALIDSYNCKEY;
+                        self::$topCollector->AnnounceInformation("State invalid - Resync folder", true);
+                        self::$deviceManager->ForceFolderResync($folderid);
+                    }
 
                     // update folderid.. this might be a new object
-                    $cpo->SetFolderId($folderid);
+                    $spa->SetFolderId($folderid);
 
                     if ($class !== false)
-                        $cpo->SetContentClass($class);
-
-                    // new/resync requested
-                    if ($synckey == "0")
-                        $cpo->RemoveSyncKey();
-                    else if ($synckey !== false)
-                        $cpo->SetSyncKey($synckey);
+                        $spa->SetContentClass($class);
 
                     // Get class for as versions >= 12.0
-                    if (! $cpo->HasContentClass()) {
+                    if (! $spa->HasContentClass()) {
                         try {
-                            $cpo->SetContentClass(self::$deviceManager->GetFolderClassFromCacheByID($cpo->GetFolderId()));
-                            ZLog::Write(LOGLEVEL_DEBUG, sprintf("GetFolderClassFromCacheByID from Device Manager: '%s' for id:'%s'", $cpo->GetContentClass(), $cpo->GetFolderId()));
+                            $spa->SetContentClass(self::$deviceManager->GetFolderClassFromCacheByID($spa->GetFolderId()));
+                            ZLog::Write(LOGLEVEL_DEBUG, sprintf("GetFolderClassFromCacheByID from Device Manager: '%s' for id:'%s'", $spa->GetContentClass(), $spa->GetFolderId()));
                         }
                         catch (NoHierarchyCacheAvailableException $nhca) {
                             $status = SYNC_STATUS_FOLDERHIERARCHYCHANGED;
@@ -140,12 +153,12 @@ class Sync extends RequestProcessor {
                         }
                     }
 
-                    // done basic CPO initialization/loading -> add to SyncCollection
-                    $sc->AddCollection($cpo);
-                    $sc->AddParameter($cpo, "requested", true);
+                    // done basic SPA initialization/loading -> add to SyncCollection
+                    $sc->AddCollection($spa);
+                    $sc->AddParameter($spa, "requested", true);
 
-                    if ($cpo->HasContentClass())
-                        self::$topCollector->AnnounceInformation(sprintf("%s request", $cpo->GetContentClass()), true);
+                    if ($spa->HasContentClass())
+                        self::$topCollector->AnnounceInformation(sprintf("%s request", $spa->GetContentClass()), true);
                     else
                         ZLog::Write(LOGLEVEL_WARN, "Not possible to determine class of request. Request did not contain class and apparently there is an issue with the HierarchyCache.");
 
@@ -160,14 +173,14 @@ class Sync extends RequestProcessor {
                             else
                                 $supfields[] = $el[EN_TAG];
                         }
-                        self::$deviceManager->SetSupportedFields($cpo->GetFolderId(), $supfields);
+                        self::$deviceManager->SetSupportedFields($spa->GetFolderId(), $supfields);
                     }
 
                     // Deletes as moves can be an empty tag as well as have value
                     if(self::$decoder->getElementStartTag(SYNC_DELETESASMOVES)) {
-                        $cpo->SetDeletesAsMoves(true);
+                        $spa->SetDeletesAsMoves(true);
                         if (($dam = self::$decoder->getElementContent()) !== false) {
-                            $cpo->SetDeletesAsMoves((boolean)$dam);
+                            $spa->SetDeletesAsMoves((boolean)$dam);
                             if(!self::$decoder->getElementEndTag()) {
                                 return false;
                             }
@@ -177,9 +190,9 @@ class Sync extends RequestProcessor {
                     // Get changes can be an empty tag as well as have value
                     // code block partly contributed by dw2412
                     if(self::$decoder->getElementStartTag(SYNC_GETCHANGES)) {
-                        $sc->AddParameter($cpo, "getchanges", true);
+                        $sc->AddParameter($spa, "getchanges", true);
                         if (($gc = self::$decoder->getElementContent()) !== false) {
-                            $sc->AddParameter($cpo, "getchanges", $gc);
+                            $sc->AddParameter($spa, "getchanges", $gc);
                             if(!self::$decoder->getElementEndTag()) {
                                 return false;
                             }
@@ -187,10 +200,10 @@ class Sync extends RequestProcessor {
                     }
 
                     if(self::$decoder->getElementStartTag(SYNC_WINDOWSIZE)) {
-                        $cpo->SetWindowSize(self::$decoder->getElementContent());
+                        $spa->SetWindowSize(self::$decoder->getElementContent());
 
                         // also announce the currently requested window size to the DeviceManager
-                        self::$deviceManager->SetWindowSize($cpo->GetFolderId(), $cpo->GetWindowSize());
+                        self::$deviceManager->SetWindowSize($spa->GetFolderId(), $spa->GetWindowSize());
 
                         if(!self::$decoder->getElementEndTag())
                             return false;
@@ -198,60 +211,61 @@ class Sync extends RequestProcessor {
 
                     // conversation mode requested
                     if(self::$decoder->getElementStartTag(SYNC_CONVERSATIONMODE)) {
-                        $cpo->SetConversationMode(true);
+                        $spa->SetConversationMode(true);
                         if(($conversationmode = self::$decoder->getElementContent()) !== false) {
-                            $cpo->SetConversationMode((boolean)$conversationmode);
+                            $spa->SetConversationMode((boolean)$conversationmode);
                             if(!self::$decoder->getElementEndTag())
                             return false;
                         }
                     }
 
                     // Do not truncate by default
-                    $cpo->SetTruncation(SYNC_TRUNCATION_ALL);
+                    $spa->SetTruncation(SYNC_TRUNCATION_ALL);
                     // set to synchronize all changes. The mobile could overwrite this value
-                    $cpo->SetFilterType(SYNC_FILTERTYPE_ALL);
+                    $spa->SetFilterType(SYNC_FILTERTYPE_ALL);
 
-                    if(self::$decoder->getElementStartTag(SYNC_OPTIONS)) {
+                    while(self::$decoder->getElementStartTag(SYNC_OPTIONS)) {
                         while(1) {
-                            //TODO - review - sms sync
                             if(self::$decoder->getElementStartTag(SYNC_FOLDERTYPE)) {
                                 $foldertype = self::$decoder->getElementContent();
-                                ZLog::Write(LOGLEVEL_DEBUG, "options 1 foldertype:$foldertype");
+                                ZLog::Write(LOGLEVEL_DEBUG, sprintf("HandleSync(): specified options block with foldertype '%s'", $foldertype));
 
+                                // switch the foldertype for the next options
+                                $spa->UseCPO($foldertype);
                                 if(!self::$decoder->getElementEndTag())
                                 return false;
                             }
 
                             if(self::$decoder->getElementStartTag(SYNC_FILTERTYPE)) {
-                                $cpo->SetFilterType(self::$decoder->getElementContent());
+                                $spa->SetFilterType(self::$decoder->getElementContent());
                                 if(!self::$decoder->getElementEndTag())
                                     return false;
                             }
                             if(self::$decoder->getElementStartTag(SYNC_TRUNCATION)) {
-                                $cpo->SetTruncation(self::$decoder->getElementContent());
+                                $spa->SetTruncation(self::$decoder->getElementContent());
                                 if(!self::$decoder->getElementEndTag())
                                     return false;
                             }
                             if(self::$decoder->getElementStartTag(SYNC_RTFTRUNCATION)) {
-                                $cpo->SetRTFTruncation(self::$decoder->getElementContent());
+                                $spa->SetRTFTruncation(self::$decoder->getElementContent());
                                 if(!self::$decoder->getElementEndTag())
                                     return false;
                             }
 
                             if(self::$decoder->getElementStartTag(SYNC_MIMESUPPORT)) {
-                                $cpo->SetMimeSupport(self::$decoder->getElementContent());
+                                $spa->SetMimeSupport(self::$decoder->getElementContent());
                                 if(!self::$decoder->getElementEndTag())
                                     return false;
                             }
 
                             if(self::$decoder->getElementStartTag(SYNC_MIMETRUNCATION)) {
-                                $cpo->SetMimeTruncation(self::$decoder->getElementContent());
+                                $spa->SetMimeTruncation(self::$decoder->getElementContent());
                                 if(!self::$decoder->getElementEndTag())
                                     return false;
                             }
 
                             if(self::$decoder->getElementStartTag(SYNC_CONFLICT)) {
-                                $cpo->SetConflict(self::$decoder->getElementContent());
+                                $spa->SetConflict(self::$decoder->getElementContent());
                                 if(!self::$decoder->getElementEndTag())
                                     return false;
                             }
@@ -259,26 +273,26 @@ class Sync extends RequestProcessor {
                             while (self::$decoder->getElementStartTag(SYNC_AIRSYNCBASE_BODYPREFERENCE)) {
                                 if(self::$decoder->getElementStartTag(SYNC_AIRSYNCBASE_TYPE)) {
                                     $bptype = self::$decoder->getElementContent();
-                                    $cpo->BodyPreference($bptype);
+                                    $spa->BodyPreference($bptype);
                                     if(!self::$decoder->getElementEndTag()) {
                                         return false;
                                     }
                                 }
 
                                 if(self::$decoder->getElementStartTag(SYNC_AIRSYNCBASE_TRUNCATIONSIZE)) {
-                                    $cpo->BodyPreference($bptype)->SetTruncationSize(self::$decoder->getElementContent());
+                                    $spa->BodyPreference($bptype)->SetTruncationSize(self::$decoder->getElementContent());
                                     if(!self::$decoder->getElementEndTag())
                                         return false;
                                 }
 
                                 if(self::$decoder->getElementStartTag(SYNC_AIRSYNCBASE_ALLORNONE)) {
-                                    $cpo->BodyPreference($bptype)->SetAllOrNone(self::$decoder->getElementContent());
+                                    $spa->BodyPreference($bptype)->SetAllOrNone(self::$decoder->getElementContent());
                                     if(!self::$decoder->getElementEndTag())
                                         return false;
                                 }
 
                                 if(self::$decoder->getElementStartTag(SYNC_AIRSYNCBASE_PREVIEW)) {
-                                    $cpo->BodyPreference($bptype)->SetPreview(self::$decoder->getElementContent());
+                                    $spa->BodyPreference($bptype)->SetPreview(self::$decoder->getElementContent());
                                     if(!self::$decoder->getElementEndTag())
                                         return false;
                                 }
@@ -286,43 +300,6 @@ class Sync extends RequestProcessor {
                                 if(!self::$decoder->getElementEndTag())
                                     return false;
                             }
-
-                            $e = self::$decoder->peek();
-                            if($e[EN_TYPE] == EN_TYPE_ENDTAG) {
-                                self::$decoder->getElementEndTag();
-                                break;
-                            }
-                        }
-                    }
-
-                    //TODO - review - sms sync
-                    if(self::$decoder->getElementStartTag(SYNC_OPTIONS)) {
-                        while(1) {
-                            if(self::$decoder->getElementStartTag(SYNC_FOLDERTYPE)) {
-                                $foldertype = self::$decoder->getElementContent();
-
-                                if(!self::$decoder->getElementEndTag())
-                                    return false;
-                            }
-
-                            if(self::$decoder->getElementStartTag(SYNC_FILTERTYPE)) {
-                                $cpo->SetFilterType(self::$decoder->getElementContent());
-                                if(!self::$decoder->getElementEndTag())
-                                    return false;
-                            }
-
-                            while (self::$decoder->getElementStartTag(SYNC_AIRSYNCBASE_BODYPREFERENCE)) {
-                                if(self::$decoder->getElementStartTag(SYNC_AIRSYNCBASE_TYPE)) {
-                                    $bptype = self::$decoder->getElementContent();
-                                    $cpo->BodyPreference($bptype);
-                                    if(!self::$decoder->getElementEndTag()) {
-                                        return false;
-                                    }
-                                }
-                                if(!self::$decoder->getElementEndTag())
-                                    return false;
-                            }
-
 
                             $e = self::$decoder->peek();
                             if($e[EN_TYPE] == EN_TYPE_ENDTAG) {
@@ -334,27 +311,27 @@ class Sync extends RequestProcessor {
 
                     // limit items to be synchronized to the mobiles if configured
                     if (defined('SYNC_FILTERTIME_MAX') && SYNC_FILTERTIME_MAX > SYNC_FILTERTYPE_ALL &&
-                        (!$cpo->HasFilterType() || $cpo->GetFilterType() == SYNC_FILTERTYPE_ALL || $cpo->GetFilterType() > SYNC_FILTERTIME_MAX)) {
+                        (!$spa->HasFilterType() || $spa->GetFilterType() == SYNC_FILTERTYPE_ALL || $spa->GetFilterType() > SYNC_FILTERTIME_MAX)) {
                             ZLog::Write(LOGLEVEL_DEBUG, sprintf("SYNC_FILTERTIME_MAX defined. Filter set to value: %s", SYNC_FILTERTIME_MAX));
-                            $cpo->SetFilterType(SYNC_FILTERTIME_MAX);
+                            $spa->SetFilterType(SYNC_FILTERTIME_MAX);
                     }
 
                     // set default conflict behavior from config if the device doesn't send a conflict resolution parameter
-                    if (! $cpo->HasConflict()) {
-                        $cpo->SetConflict(SYNC_CONFLICT_DEFAULT);
+                    if (! $spa->HasConflict()) {
+                        $spa->SetConflict(SYNC_CONFLICT_DEFAULT);
                     }
 
                     // Get our syncstate
                     if ($status == SYNC_STATUS_SUCCESS) {
                         try {
-                            $sc->AddParameter($cpo, "state", self::$deviceManager->GetStateManager()->GetSyncState($cpo->GetSyncKey()));
+                            $sc->AddParameter($spa, "state", self::$deviceManager->GetStateManager()->GetSyncState($spa->GetSyncKey()));
 
                             // if this request was made before, there will be a failstate available
                             $actiondata["failstate"] = self::$deviceManager->GetStateManager()->GetSyncFailState();
 
                             // if this is an additional folder the backend has to be setup correctly
-                            if (!self::$backend->Setup(ZPush::GetAdditionalSyncFolderStore($cpo->GetFolderId())))
-                                throw new StatusException(sprintf("HandleSync() could not Setup() the backend for folder id '%s'", $cpo->GetFolderId()), SYNC_STATUS_FOLDERHIERARCHYCHANGED);
+                            if (!self::$backend->Setup(ZPush::GetAdditionalSyncFolderStore($spa->GetFolderId())))
+                                throw new StatusException(sprintf("HandleSync() could not Setup() the backend for folder id '%s'", $spa->GetFolderId()), SYNC_STATUS_FOLDERHIERARCHYCHANGED);
                         }
                         catch (StateNotFoundException $snfex) {
                             $status = SYNC_STATUS_INVALIDSYNCKEY;
@@ -385,18 +362,18 @@ class Sync extends RequestProcessor {
                         if ($status == SYNC_STATUS_SUCCESS) {
                             try {
                                 // Configure importer with last state
-                                $importer = self::$backend->GetImporter($cpo->GetFolderId());
+                                $importer = self::$backend->GetImporter($spa->GetFolderId());
 
                                 // if something goes wrong, ask the mobile to resync the hierarchy
                                 if ($importer === false)
-                                    throw new StatusException(sprintf("HandleSync() could not get an importer for folder id '%s'", $cpo->GetFolderId()), SYNC_STATUS_FOLDERHIERARCHYCHANGED);
+                                    throw new StatusException(sprintf("HandleSync() could not get an importer for folder id '%s'", $spa->GetFolderId()), SYNC_STATUS_FOLDERHIERARCHYCHANGED);
 
                                 // if there is a valid state obtained after importing changes in a previous loop, we use that state
                                 if ($actiondata["failstate"] && isset($actiondata["failstate"]["failedsyncstate"])) {
-                                    $importer->Config($actiondata["failstate"]["failedsyncstate"], $cpo->GetConflict());
+                                    $importer->Config($actiondata["failstate"]["failedsyncstate"], $spa->GetConflict());
                                 }
                                 else
-                                    $importer->Config($sc->GetParameter($cpo, "state"), $cpo->GetConflict());
+                                    $importer->Config($sc->GetParameter($spa, "state"), $spa->GetConflict());
                             }
                             catch (StatusException $stex) {
                                $status = $stex->getCode();
@@ -418,7 +395,7 @@ class Sync extends RequestProcessor {
 
                             // TODO check if the failsyncstate applies for conflict detection as well
                             if ($status == SYNC_STATUS_SUCCESS && $nchanges == 0)
-                                $importer->LoadConflicts($cpo, $sc->GetParameter($cpo, "state"));
+                                $importer->LoadConflicts($spa->GetCPO(), $sc->GetParameter($spa, "state"));
 
                             if ($status == SYNC_STATUS_SUCCESS)
                                 $nchanges++;
@@ -443,11 +420,11 @@ class Sync extends RequestProcessor {
 
                             // Get the SyncMessage if sent
                             if(self::$decoder->getElementStartTag(SYNC_DATA)) {
-                                $message = ZPush::getSyncObjectFromFolderClass($cpo->GetContentClass());
+                                $message = ZPush::getSyncObjectFromFolderClass($spa->GetContentClass());
                                 $message->Decode(self::$decoder);
 
                                 // set Ghosted fields
-                                $message->emptySupported(self::$deviceManager->GetSupportedFields($cpo->GetFolderId()));
+                                $message->emptySupported(self::$deviceManager->GetSupportedFields($spa->GetFolderId()));
                                 if(!self::$decoder->getElementEndTag()) // end applicationdata
                                     return false;
                             }
@@ -467,7 +444,7 @@ class Sync extends RequestProcessor {
                                     $ignoreMessage = true;
 
                                     // make sure no messages are sent back
-                                    self::$deviceManager->SetWindowSize($cpo->GetFolderId(), 0);
+                                    self::$deviceManager->SetWindowSize($spa->GetFolderId(), 0);
 
                                     $actiondata["clientids"][$clientid] = $actiondata["failstate"]["clientids"][$clientid];
                                     $actiondata["statusids"][$clientid] = $actiondata["failstate"]["statusids"][$clientid];
@@ -480,7 +457,7 @@ class Sync extends RequestProcessor {
                                     $ignoreMessage = true;
 
                                     // make sure no messages are sent back
-                                    self::$deviceManager->SetWindowSize($cpo->GetFolderId(), 0);
+                                    self::$deviceManager->SetWindowSize($spa->GetFolderId(), 0);
 
                                     $actiondata["removeids"][$serverid] = $actiondata["failstate"]["removeids"][$serverid];
                                     $actiondata["statusids"][$serverid] = $actiondata["failstate"]["statusids"][$serverid];
@@ -538,7 +515,7 @@ class Sync extends RequestProcessor {
                                         try {
                                             $actiondata["removeids"][] = $serverid;
                                             // if message deletions are to be moved, move them
-                                            if($cpo->GetDeletesAsMoves()) {
+                                            if($spa->GetDeletesAsMoves()) {
                                                 $folderid = self::$backend->GetWasteBasket();
 
                                                 if($folderid) {
@@ -572,7 +549,7 @@ class Sync extends RequestProcessor {
                             ZLog::Write(LOGLEVEL_INFO, sprintf("Processed '%d' incoming changes", $nchanges));
                             try {
                                 // Save the updated state, which is used for the exporter later
-                                $sc->AddParameter($cpo, "state", $importer->GetState());
+                                $sc->AddParameter($spa, "state", $importer->GetState());
                             }
                             catch (StatusException $stex) {
                                $status = $stex->getCode();
@@ -586,19 +563,19 @@ class Sync extends RequestProcessor {
                     // save the failsave state
                     if (!empty($actiondata["statusids"])) {
                         unset($actiondata["failstate"]);
-                        $actiondata["failedsyncstate"] = $sc->GetParameter($cpo, "state");
+                        $actiondata["failedsyncstate"] = $sc->GetParameter($spa, "state");
                         self::$deviceManager->GetStateManager()->SetSyncFailState($actiondata);
                     }
 
                     // save actiondata
-                    $sc->AddParameter($cpo, "actiondata", $actiondata);
+                    $sc->AddParameter($spa, "actiondata", $actiondata);
 
                     if(!self::$decoder->getElementEndTag()) // end collection
                         return false;
 
                     // AS14 does not send GetChanges anymore. We should do it if there were no incoming changes
-                    if (!isset($performaction) && !$sc->GetParameter($cpo, "getchanges") && $cpo->HasSyncKey())
-                        $sc->AddParameter($cpo, "getchanges", true);
+                    if (!isset($performaction) && !$sc->GetParameter($spa, "getchanges") && $spa->HasSyncKey())
+                        $sc->AddParameter($spa, "getchanges", true);
                 } // END FOLDER
 
                 if(!$wbxmlproblem && !self::$decoder->getElementEndTag()) // end collections
@@ -667,16 +644,16 @@ class Sync extends RequestProcessor {
             }
 
             // update a few values
-            foreach($sc as $folderid => $cpo) {
+            foreach($sc as $folderid => $spa) {
                 // manually set getchanges parameter for this collection
-                $sc->AddParameter($cpo, "getchanges", true);
+                $sc->AddParameter($spa, "getchanges", true);
 
-                // set new global windowsize without marking the CPO as changed
+                // set new global windowsize without marking the SPA as changed
                 if ($sc->GetGlobalWindowSize())
-                    $cpo->SetWindowSize($sc->GetGlobalWindowSize(), false);
+                    $spa->SetWindowSize($sc->GetGlobalWindowSize(), false);
 
                 // announce WindowSize to DeviceManager
-                self::$deviceManager->SetWindowSize($folderid, $cpo->GetWindowSize());
+                self::$deviceManager->SetWindowSize($folderid, $spa->GetWindowSize());
             }
             if (!$sc->HasCollections())
                 $status = SYNC_STATUS_SYNCREQUESTINCOMPLETE;
@@ -737,12 +714,12 @@ class Sync extends RequestProcessor {
             else {
                 self::$encoder->startTag(SYNC_FOLDERS);
                 {
-                    foreach($sc as $folderid => $cpo) {
+                    foreach($sc as $folderid => $spa) {
                         // get actiondata
-                        $actiondata = $sc->GetParameter($cpo, "actiondata");
+                        $actiondata = $sc->GetParameter($spa, "actiondata");
 
-                        if (! $sc->GetParameter($cpo, "requested"))
-                            ZLog::Write(LOGLEVEL_DEBUG, sprintf("HandleSync(): partial sync for folder class '%s' with id '%s'", $cpo->GetContentClass(), $cpo->GetFolderId()));
+                        if (! $sc->GetParameter($spa, "requested"))
+                            ZLog::Write(LOGLEVEL_DEBUG, sprintf("HandleSync(): partial sync for folder class '%s' with id '%s'", $spa->GetContentClass(), $spa->GetFolderId()));
 
                         // TODO do not get Exporter / Changes if this is a fetch operation
 
@@ -750,74 +727,78 @@ class Sync extends RequestProcessor {
                         $changecount = 0;
 
                         // TODO we could check against $sc->GetChangedFolderIds() on heartbeat so we do not need to configure all exporter again
-                        if($status == SYNC_STATUS_SUCCESS && ($sc->GetParameter($cpo, "getchanges") || ! $cpo->HasSyncKey())) {
+                        if($status == SYNC_STATUS_SUCCESS && ($sc->GetParameter($spa, "getchanges") || ! $spa->HasSyncKey())) {
                             try {
                                 // Use the state from the importer, as changes may have already happened
-                                $exporter = self::$backend->GetExporter($cpo->GetFolderId());
+                                $exporter = self::$backend->GetExporter($spa->GetFolderId());
 
                                 if ($exporter === false)
-                                    throw new StatusException(sprintf("HandleSync() could not get an exporter for folder id '%s'", $cpo->GetFolderId()), SYNC_STATUS_FOLDERHIERARCHYCHANGED);
+                                    throw new StatusException(sprintf("HandleSync() could not get an exporter for folder id '%s'", $spa->GetFolderId()), SYNC_STATUS_FOLDERHIERARCHYCHANGED);
                             }
                             catch (StatusException $stex) {
                                $status = $stex->getCode();
                             }
                             try {
                                 // Stream the messages directly to the PDA
-                                $streamimporter = new ImportChangesStream(self::$encoder, ZPush::getSyncObjectFromFolderClass($cpo->GetContentClass()));
+                                $streamimporter = new ImportChangesStream(self::$encoder, ZPush::getSyncObjectFromFolderClass($spa->GetContentClass()));
 
                                 if ($exporter !== false) {
-                                    $exporter->Config($sc->GetParameter($cpo, "state"));
-                                    $exporter->ConfigContentParameters($cpo);
+                                    $exporter->Config($sc->GetParameter($spa, "state"));
+                                    $exporter->ConfigContentParameters($spa->GetCPO());
                                     $exporter->InitializeExporter($streamimporter);
 
                                     $changecount = $exporter->GetChangeCount();
                                 }
                             }
                             catch (StatusException $stex) {
-                                if ($stex->getCode() === SYNC_FSSTATUS_CODEUNKNOWN && $cpo->HasSyncKey())
+                                if ($stex->getCode() === SYNC_FSSTATUS_CODEUNKNOWN && $spa->HasSyncKey())
                                     $status = SYNC_STATUS_INVALIDSYNCKEY;
                                 else
                                     $status = $stex->getCode();
                             }
 
-                            if (! $cpo->HasSyncKey())
+                            if (! $spa->HasSyncKey())
                                 self::$topCollector->AnnounceInformation(sprintf("Exporter registered. %d objects queued.", $changecount), true);
                             else if ($status != SYNC_STATUS_SUCCESS)
                                 self::$topCollector->AnnounceInformation(sprintf("StatusException code: %d", $status), true);
                         }
 
-                        if (! $sc->GetParameter($cpo, "requested") && $cpo->HasSyncKey() && $changecount == 0)
+                        if (! $sc->GetParameter($spa, "requested") && $spa->HasSyncKey() && $changecount == 0)
                             continue;
 
                         // Get a new sync key to output to the client if any changes have been send or will are available
                         if (!empty($actiondata["modifyids"]) ||
                             !empty($actiondata["clientids"]) ||
                             !empty($actiondata["removeids"]) ||
-                            $changecount > 0 || (! $cpo->HasSyncKey() && $status == SYNC_STATUS_SUCCESS))
-                                $cpo->SetNewSyncKey(self::$deviceManager->GetStateManager()->GetNewSyncKey($cpo->GetSyncKey()));
+                            $changecount > 0 || (! $spa->HasSyncKey() && $status == SYNC_STATUS_SUCCESS))
+                                $spa->SetNewSyncKey(self::$deviceManager->GetStateManager()->GetNewSyncKey($spa->GetSyncKey()));
 
                         self::$encoder->startTag(SYNC_FOLDER);
 
-                        if($cpo->HasContentClass()) {
+                        if($spa->HasContentClass()) {
                             self::$encoder->startTag(SYNC_FOLDERTYPE);
-                                self::$encoder->content($cpo->GetContentClass());
+                                self::$encoder->content($spa->GetContentClass());
                             self::$encoder->endTag();
                         }
 
                         self::$encoder->startTag(SYNC_SYNCKEY);
-                        if($status == SYNC_STATUS_SUCCESS && $cpo->HasNewSyncKey())
-                            self::$encoder->content($cpo->GetNewSyncKey());
+                        if($status == SYNC_STATUS_SUCCESS && $spa->HasNewSyncKey())
+                            self::$encoder->content($spa->GetNewSyncKey());
                         else
-                            self::$encoder->content($cpo->GetSyncKey());
+                            self::$encoder->content($spa->GetSyncKey());
                         self::$encoder->endTag();
 
                         self::$encoder->startTag(SYNC_FOLDERID);
-                            self::$encoder->content($cpo->GetFolderId());
+                            self::$encoder->content($spa->GetFolderId());
                         self::$encoder->endTag();
 
                         self::$encoder->startTag(SYNC_STATUS);
                             self::$encoder->content($status);
                         self::$encoder->endTag();
+
+                        // announce failing status to the process loop detection
+                        if ($status !== SYNC_STATUS_SUCCESS)
+                            self::$deviceManager->AnnounceProcessStatus($spa->GetFolderId(), $status);
 
                         // Output IDs and status for incoming items & requests
                         if($status == SYNC_STATUS_SUCCESS && (
@@ -879,7 +860,7 @@ class Sync extends RequestProcessor {
                                 $data = false;
                                 try {
                                     $fetchstatus = SYNC_STATUS_SUCCESS;
-                                    $data = self::$backend->Fetch($cpo->GetFolderId(), $id, $cpo);
+                                    $data = self::$backend->Fetch($spa->GetFolderId(), $id, $spa->GetCPO());
 
                                     // check if the message is broken
                                     if (ZPush::GetDeviceManager(false) && ZPush::GetDeviceManager()->DoNotStreamMessage($id, $data)) {
@@ -913,8 +894,8 @@ class Sync extends RequestProcessor {
                             self::$encoder->endTag();
                         }
 
-                        if($sc->GetParameter($cpo, "getchanges") && $cpo->HasFolderId() && $cpo->HasContentClass() && $cpo->HasSyncKey()) {
-                            $windowSize = self::$deviceManager->GetWindowSize($cpo->GetFolderId(), $cpo->GetContentClass(), $cpo->GetUuid(), $cpo->GetUuidCounter(), $changecount);
+                        if($sc->GetParameter($spa, "getchanges") && $spa->HasFolderId() && $spa->HasContentClass() && $spa->HasSyncKey()) {
+                            $windowSize = self::$deviceManager->GetWindowSize($spa->GetFolderId(), $spa->GetContentClass(), $spa->GetUuid(), $spa->GetUuidCounter(), $changecount);
 
                             if($changecount > $windowSize) {
                                 self::$encoder->startTag(SYNC_MOREAVAILABLE, false, true);
@@ -922,7 +903,7 @@ class Sync extends RequestProcessor {
                         }
 
                         // Stream outgoing changes
-                        if($status == SYNC_STATUS_SUCCESS && $sc->GetParameter($cpo, "getchanges") === true && $windowSize > 0) {
+                        if($status == SYNC_STATUS_SUCCESS && $sc->GetParameter($spa, "getchanges") === true && $windowSize > 0) {
                             self::$topCollector->AnnounceInformation(sprintf("Streaming data of %d objects", (($changecount > $windowSize)?$windowSize:$changecount)));
 
                             // Output message changes per folder
@@ -946,7 +927,7 @@ class Sync extends RequestProcessor {
                                             $brokenSO->id = "Unknown ID";
                                             ZLog::Write(LOGLEVEL_ERROR, sprintf("HandleSync(): Catched SyncObjectBrokenException but no ID of object set. This should be fixed in the backend."));
                                         }
-                                        self::$deviceManager->AnnounceIgnoredMessage($cpo->GetFolderId(), $brokenSO->id, $brokenSO);
+                                        self::$deviceManager->AnnounceIgnoredMessage($spa->GetFolderId(), $brokenSO->id, $brokenSO);
                                     }
                                 }
 
@@ -963,7 +944,7 @@ class Sync extends RequestProcessor {
                         self::$encoder->endTag();
 
                         // Save the sync state for the next time
-                        if($cpo->HasNewSyncKey()) {
+                        if($spa->HasNewSyncKey()) {
                             self::$topCollector->AnnounceInformation("Saving state");
 
                             try {
@@ -975,7 +956,7 @@ class Sync extends RequestProcessor {
                                     $state = $importer->GetState();
 
                                 // if a new request without state information (hierarchy) save an empty state
-                                else if (! $cpo->HasSyncKey())
+                                else if (! $spa->HasSyncKey())
                                     $state = "";
                             }
                             catch (StatusException $stex) {
@@ -984,15 +965,15 @@ class Sync extends RequestProcessor {
 
 
                             if (isset($state) && $status == SYNC_STATUS_SUCCESS)
-                                self::$deviceManager->GetStateManager()->SetSyncState($cpo->GetNewSyncKey(), $state, $cpo->GetFolderId());
+                                self::$deviceManager->GetStateManager()->SetSyncState($spa->GetNewSyncKey(), $state, $spa->GetFolderId());
                             else
-                                ZLog::Write(LOGLEVEL_ERROR, sprintf("HandleSync(): error saving '%s' - no state information available", $cpo->GetNewSyncKey()));
+                                ZLog::Write(LOGLEVEL_ERROR, sprintf("HandleSync(): error saving '%s' - no state information available", $spa->GetNewSyncKey()));
                         }
 
-                        // save CPO
+                        // save SyncParameters
                         // TODO check if we need changed data in case of a StatusException
                         if ($status == SYNC_STATUS_SUCCESS)
-                            $sc->SaveCollection($cpo);
+                            $sc->SaveCollection($spa);
 
                     } // END foreach collection
                 }

@@ -3,8 +3,8 @@
 * File      :   synccollections.php
 * Project   :   Z-Push
 * Descr     :   This is basically a list of synched folders with it's
-*               respective CPOs, while some additional parameters which
-*               are not stored in the CPO can be kept here.
+*               respective SyncParameters, while some additional parameters
+*               which are not stored there can be kept here.
 *               The class also provides CheckForChanges which is basically
 *               a loop through all collections checking for changes.
 *               SyncCollections is used for Sync (with and without heartbeat)
@@ -105,13 +105,19 @@ class SyncCollections implements Iterator {
     public function LoadAllCollections($overwriteLoaded = false, $loadState = false, $checkPermissions = false) {
         $this->loadStateManager();
 
+        $invalidStates = false;
         foreach($this->stateManager->GetSynchedFolders() as $folderid) {
             if ($overwriteLoaded === false && isset($this->collections[$folderid]))
                 continue;
 
             // Load Collection!
-            $this->LoadCollection($folderid, $loadState, $checkPermissions);
+            if (! $this->LoadCollection($folderid, $loadState, $checkPermissions))
+                $invalidStates = true;
         }
+
+        if ($invalidStates)
+            throw new StateInvalidException("Invalid states found while loading collections. Forcing sync");
+
         return true;
     }
 
@@ -132,85 +138,101 @@ class SyncCollections implements Iterator {
     public function LoadCollection($folderid, $loadState = false, $checkPermissions = false) {
         $this->loadStateManager();
 
-        // Get CPO for the folder from the state
-        $cpo = $this->stateManager->GetSynchedFolderState($folderid);
+        try {
+            // Get SyncParameters for the folder from the state
+            $spa = $this->stateManager->GetSynchedFolderState($folderid);
+
+            // TODO remove resync of folders for < Z-Push 2 beta4 users
+            // this forces a resync of all states previous to Z-Push 2 beta4
+            if (! $spa instanceof SyncParameters)
+                throw new StateInvalidException("Saved state are not of type SyncParameters");
+        }
+        catch (StateInvalidException $sive) {
+            // in case there is something wrong with the state, just stop here
+            // later when trying to retrieve the SyncParameters nothing will be found
+
+            // we also generate a fake change, so a sync on this folder is triggered
+            $this->changes[$folderid] = 1;
+
+            return false;
+        }
 
         // if this is an additional folder the backend has to be setup correctly
-        if ($checkPermissions === true && ! ZPush::GetBackend()->Setup(ZPush::GetAdditionalSyncFolderStore($cpo->GetFolderId())))
-            throw new StatusException(sprintf("HandleSync() could not Setup() the backend for folder id '%s'", $cpo->GetFolderId()), self::ERROR_WRONG_HIERARCHY);
+        if ($checkPermissions === true && ! ZPush::GetBackend()->Setup(ZPush::GetAdditionalSyncFolderStore($spa->GetFolderId())))
+            throw new StatusException(sprintf("SyncCollections->LoadCollection(): could not Setup() the backend for folder id '%s'", $spa->GetFolderId()), self::ERROR_WRONG_HIERARCHY);
 
-        // add collectin to object
-        $this->AddCollection($cpo);
+        // add collection to object
+        $this->AddCollection($spa);
 
         // load the latest known syncstate if requested
         if ($loadState === true)
-            $this->addparms[$folderid]["state"] = $this->stateManager->GetSyncState($cpo->GetLatestSyncKey());
+            $this->addparms[$folderid]["state"] = $this->stateManager->GetSyncState($spa->GetLatestSyncKey());
 
         return true;
     }
 
     /**
-     * Saves a CPO
+     * Saves a SyncParameters Object
      *
-     * @param ContentParameters $cpo
+     * @param SyncParamerts $spa
      *
      * @access public
      * @return boolean
      */
-    public function SaveCollection($cpo) {
+    public function SaveCollection($spa) {
         if (! $this->saveData)
             return false;
 
-        if ($cpo->IsDataChanged()) {
+        if ($spa->IsDataChanged()) {
             $this->loadStateManager();
-            ZLog::Write(LOGLEVEL_DEBUG, sprintf("SyncCollections->SaveCollection(): Data of folder '%s' changed", $cpo->GetFolderId()));
+            ZLog::Write(LOGLEVEL_DEBUG, sprintf("SyncCollections->SaveCollection(): Data of folder '%s' changed", $spa->GetFolderId()));
 
             // save new windowsize
             if (isset($this->globalWindowSize))
-                $cpo->SetWindowSize($this->globalWindowSize);
+                $spa->SetWindowSize($this->globalWindowSize);
 
             // update latest lifetime
             if (isset($this->refLifetime))
-                $cpo->SetReferenceLifetime($this->refLifetime);
+                $spa->SetReferenceLifetime($this->refLifetime);
 
-            return $this->stateManager->SetSynchedFolderState($cpo);
+            return $this->stateManager->SetSynchedFolderState($spa);
         }
         return false;
     }
 
     /**
-     * Adds a CPO to the current list of collections
+     * Adds a SyncParameters object to the current list of collections
      *
-     * @param ContentParameters $cpo
+     * @param SyncParameters $spa
      *
      * @access public
      * @return boolean
      */
-    public function AddCollection($cpo) {
-        $this->collections[$cpo->GetFolderId()] = $cpo;
+    public function AddCollection($spa) {
+        $this->collections[$spa->GetFolderId()] = $spa;
 
-        if ($cpo->HasLastSyncTime() && $cpo->GetLastSyncTime() > $this->lastSyncTime) {
-            $this->lastSyncTime = $cpo->GetLastSyncTime();
+        if ($spa->HasLastSyncTime() && $spa->GetLastSyncTime() > $this->lastSyncTime) {
+            $this->lastSyncTime = $spa->GetLastSyncTime();
 
-            // use CPOs PolicyKey as reference if available
-            if ($cpo->HasReferencePolicyKey())
-                $this->refPolicyKey = $cpo->GetReferencePolicyKey();
+            // use SyncParameters PolicyKey as reference if available
+            if ($spa->HasReferencePolicyKey())
+                $this->refPolicyKey = $spa->GetReferencePolicyKey();
 
-            // use CPOs LifeTime as reference if available
-            if ($cpo->HasReferenceLifetime())
-                $this->refLifetime = $cpo->GetReferenceLifetime();
+            // use SyncParameters LifeTime as reference if available
+            if ($spa->HasReferenceLifetime())
+                $this->refLifetime = $spa->GetReferenceLifetime();
         }
 
         return true;
     }
 
     /**
-     * Returns a previousily added or loaded CPO for a folderid
+     * Returns a previousily added or loaded SyncParameters object for a folderid
      *
-     * @param ContentParameters $cpo
+     * @param SyncParameters $spa
      *
      * @access public
-     * @return ContentParameters / boolean      false if no CPO found for folderid
+     * @return SyncParameters / boolean      false if no SyncParameters object is found for folderid
      */
     public function GetCollection($folderid) {
         if (isset($this->collections[$folderid]))
@@ -230,20 +252,20 @@ class SyncCollections implements Iterator {
     }
 
     /**
-     * Add a no-permanent key/value pair for CPO
+     * Add a non-permanent key/value pair for a SyncParameters object
      *
-     * @param ContentParameters $cpo    target CPO
+     * @param SyncParameters    $spa    target SyncParameters
      * @param string            $key
      * @param mixed             $value
      *
      * @access public
      * @return boolean
      */
-    public function AddParameter($cpo, $key, $value) {
-        if (!$cpo->HasFolderId())
+    public function AddParameter($spa, $key, $value) {
+        if (!$spa->HasFolderId())
             return false;
 
-        $folderid = $cpo->GetFolderId();
+        $folderid = $spa->GetFolderId();
         if (!isset($this->addparms[$folderid]))
             $this->addparms[$folderid] = array();
 
@@ -252,17 +274,17 @@ class SyncCollections implements Iterator {
     }
 
     /**
-     * Returns a previousily set no-permanent value for a CPO
+     * Returns a previousily set non-permanent value for a SyncParameters object
      *
-     * @param ContentParameters $cpo    target CPO
+     * @param SyncParameters    $spa    target SyncParameters
      * @param string            $key
      *
      * @access public
      * @return mixed            returns 'null' if nothing set
      */
-    public function GetParameter($cpo, $key) {
-        if (isset($this->addparms[$cpo->GetFolderId()]) && isset($this->addparms[$cpo->GetFolderId()][$key]))
-            return $this->addparms[$cpo->GetFolderId()][$key];
+    public function GetParameter($spa, $key) {
+        if (isset($this->addparms[$spa->GetFolderId()]) && isset($this->addparms[$spa->GetFolderId()][$key]))
+            return $this->addparms[$spa->GetFolderId()][$key];
         else
             return null;
     }
@@ -382,11 +404,11 @@ class SyncCollections implements Iterator {
      */
     public function CheckForChanges($lifetime = 600, $interval = 30, $onlyPingable = false) {
         $classes = array();
-        foreach ($this->collections as $folderid => $cpo){
-            if ($onlyPingable && $cpo->GetPingableFlag() !== true)
+        foreach ($this->collections as $folderid => $spa){
+            if ($onlyPingable && $spa->GetPingableFlag() !== true)
                 continue;
 
-            $classes[] = $cpo->GetContentClass();
+            $classes[] = $spa->GetContentClass();
         }
         $checkClasses = implode("/", $classes);
 
@@ -400,7 +422,7 @@ class SyncCollections implements Iterator {
 
         ZPush::GetTopCollector()->SetAsPushConnection();
         ZPush::GetTopCollector()->AnnounceInformation(sprintf("lifetime %ds", $lifetime), true);
-        ZLog::Write(LOGLEVEL_INFO, sprintf("CheckForChanges(): Waiting for changes... (lifetime %d seconds)", $lifetime));
+        ZLog::Write(LOGLEVEL_INFO, sprintf("SyncCollections->CheckForChanges(): Waiting for changes... (lifetime %d seconds)", $lifetime));
 
         // use changes sink where available
         $changesSink = false;
@@ -409,8 +431,8 @@ class SyncCollections implements Iterator {
             $changesSink = true;
 
             // initialize all possible folders
-            foreach ($this->collections as $folderid => $cpo) {
-                if ($onlyPingable && $cpo->GetPingableFlag() !== true)
+            foreach ($this->collections as $folderid => $spa) {
+                if ($onlyPingable && $spa->GetPingableFlag() !== true)
                     continue;
 
                 // switch user store if this is a additional folder and initialize sink
@@ -431,7 +453,7 @@ class SyncCollections implements Iterator {
 
             // Check if provisioning is necessary
             // if a PolicyKey was sent use it. If not, compare with the ReferencePolicyKey
-            if (PROVISIONING === true && ZPush::GetDeviceManager()->ProvisioningRequired($this->GetReferencePolicyKey(), true))
+            if (PROVISIONING === true && $this->GetReferencePolicyKey() !== false && ZPush::GetDeviceManager()->ProvisioningRequired($this->GetReferencePolicyKey(), true))
                 // the hierarchysync forces provisioning
                 throw new StatusException("SyncCollections->CheckForChanges(): PolicyKey changed. Provisioning required.", self::ERROR_WRONG_HIERARCHY);
 
@@ -447,7 +469,7 @@ class SyncCollections implements Iterator {
 
                 // more than 60 secs to go?
                 if (($now + 60) < $endat) {
-                    ZLog::Write(LOGLEVEL_DEBUG, sprintf("CheckForChanges(): Timeout forced after %ss from %ss due to other process", ($now-$started), $lifetime));
+                    ZLog::Write(LOGLEVEL_DEBUG, sprintf("SyncCollections->CheckForChanges(): Timeout forced after %ss from %ss due to other process", ($now-$started), $lifetime));
                     ZPush::GetTopCollector()->AnnounceInformation(sprintf("Forced timeout after %ds", ($now-$started)), true);
                     return false;
                 }
@@ -459,7 +481,7 @@ class SyncCollections implements Iterator {
                 // every 5 minutes this is also done to see if there were "missed" notifications
                 if ($forceRealExport+300 <= $now) {
                     if ($this->CountChanges($onlyPingable)) {
-                        ZLog::Write(LOGLEVEL_DEBUG, "CheckForChanges(): Using ChangesSink but found relevant changes on regular export");
+                        ZLog::Write(LOGLEVEL_DEBUG, "SyncCollections->CheckForChanges(): Using ChangesSink but found relevant changes on regular export");
                         return true;
                     }
                     $forceRealExport = $now;
@@ -471,11 +493,11 @@ class SyncCollections implements Iterator {
                 foreach ($notifications as $folderid) {
                     // check if the notification on the folder is within our filter
                     if ($this->CountChange($folderid)) {
-                        ZLog::Write(LOGLEVEL_DEBUG, sprintf("CheckForChanges(): Notification received on folder '%s'", $folderid));
+                        ZLog::Write(LOGLEVEL_DEBUG, sprintf("SyncCollections->CheckForChanges(): Notification received on folder '%s'", $folderid));
                         return true;
                     }
                     else {
-                        ZLog::Write(LOGLEVEL_DEBUG, sprintf("CheckForChanges(): Notification received on folder '%s', but it is not relevant", $folderid));
+                        ZLog::Write(LOGLEVEL_DEBUG, sprintf("SyncCollections->CheckForChanges(): Notification received on folder '%s', but it is not relevant", $folderid));
                     }
                 }
             }
@@ -483,7 +505,7 @@ class SyncCollections implements Iterator {
             else {
                 ZPush::GetTopCollector()->AnnounceInformation(sprintf("Polling %d/%ds on %s", ($now-$started), $lifetime, $checkClasses));
                 if ($this->CountChanges($onlyPingable)) {
-                    ZLog::Write(LOGLEVEL_DEBUG, sprintf("CheckForChanges(): FOUND CHANGES", print_r($this->changes,1)));
+                    ZLog::Write(LOGLEVEL_DEBUG, sprintf("SyncCollections->CheckForChanges(): FOUND CHANGES", print_r($this->changes,1)));
                     return true;
                 }
                 else {
@@ -491,7 +513,7 @@ class SyncCollections implements Iterator {
                 }
             } // end polling
         } // end wait for changes
-        ZLog::Write(LOGLEVEL_DEBUG, sprintf("CheckForChanges(): no changes found after %ds", time() - $started));
+        ZLog::Write(LOGLEVEL_DEBUG, sprintf("SyncCollections->CheckForChanges(): no changes found after %ds", time() - $started));
 
         return false;
     }
@@ -507,8 +529,11 @@ class SyncCollections implements Iterator {
      */
     public function CountChanges($onlyPingable = false) {
         $changesAvailable = false;
-        foreach ($this->collections as $folderid => $cpo) {
-            if ($onlyPingable && $cpo->GetPingableFlag() !== true)
+        foreach ($this->collections as $folderid => $spa) {
+            if ($onlyPingable && $spa->GetPingableFlag() !== true)
+                continue;
+
+            if (isset($this->addparms[$spa->GetFolderId()]["status"]) && $this->addparms[$spa->GetFolderId()]["status"] != SYNC_STATUS_SUCCESS)
                 continue;
 
             if ($this->CountChange($folderid))
@@ -527,7 +552,7 @@ class SyncCollections implements Iterator {
      * @return boolean      indicating if changes were found or not
      */
      private function CountChange($folderid) {
-        $cpo = $this->GetCollection($folderid);
+        $spa = $this->GetCollection($folderid);
 
         // switch user store if this is a additional folder (additional true -> do not debug)
         ZPush::GetBackend()->Setup(ZPush::GetAdditionalSyncFolderStore($folderid, true));
@@ -538,7 +563,7 @@ class SyncCollections implements Iterator {
             if ($exporter !== false && isset($this->addparms[$folderid]["state"])) {
                 $importer = false;
                 $exporter->Config($this->addparms[$folderid]["state"], BACKEND_DISCARD_DATA);
-                $exporter->ConfigContentParameters($cpo);
+                $exporter->ConfigContentParameters($spa->GetCPO());
                 $ret = $exporter->InitializeExporter($importer);
 
                 if ($ret !== false)

@@ -117,15 +117,15 @@ class StateManager {
     }
 
     /**
-     * Returns a folder state (ContentParameters) for a folder id
+     * Returns a folder state (SyncParameters) for a folder id
      *
      * @param $folderid
      *
      * @access public
-     * @return ContentParameters
+     * @return SyncParameters
      */
     public function GetSynchedFolderState($folderid) {
-        // new CPOs are cached
+        // new SyncParameters are cached
         if (isset($this->synchedFolders[$folderid]))
             return $this->synchedFolders[$folderid];
 
@@ -141,27 +141,27 @@ class StateManager {
         }
 
         if (!isset($this->synchedFolders[$folderid]))
-            $this->synchedFolders[$folderid] = new ContentParameters();
+            $this->synchedFolders[$folderid] = new SyncParameters();
 
         return $this->synchedFolders[$folderid];
     }
 
     /**
-     * Saves a folder state - ContentParameter object
+     * Saves a folder state - SyncParameters object
      *
-     * @param ContentParamerters    $cpo
+     * @param SyncParamerters    $spa
      *
      * @access public
      * @return boolean
      */
-    public function SetSynchedFolderState($cpo) {
+    public function SetSynchedFolderState($spa) {
         // make sure the current uuid is linked on the device for the folder.
         // if not, old states will be automatically removed and the new ones linked
-        self::LinkState($this->device, $cpo->GetUuid(), $cpo->GetFolderId());
+        self::LinkState($this->device, $spa->GetUuid(), $spa->GetFolderId());
 
-        $cpo->SetReferencePolicyKey($this->device->GetPolicyKey());
+        $spa->SetReferencePolicyKey($this->device->GetPolicyKey());
 
-        return $this->statemachine->SetState($cpo, $this->device->GetDeviceId(), IStateMachine::FOLDERDATA, $cpo->GetUuid());
+        return $this->statemachine->SetState($spa, $this->device->GetDeviceId(), IStateMachine::FOLDERDATA, $spa->GetUuid());
     }
 
     /**

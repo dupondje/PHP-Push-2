@@ -399,14 +399,6 @@ class BackendZarafa implements IBackend, ISearchProvider {
         foreach(preg_split("/((\r)?\n)/", $sm->mime) as $rfc822line)
             ZLog::Write(LOGLEVEL_WBXML, "RFC822: ". $rfc822line);
 
-        $mimeParams = array('decode_headers' => true,
-                            'decode_bodies' => true,
-                            'include_bodies' => true,
-                            'charset' => 'utf-8');
-
-        $mimeObject = new Mail_mimeDecode($sm->mime);
-        $message = $mimeObject->decode($mimeParams);
-
         $sendMailProps = MAPIMapping::GetSendMailProperties();
         $sendMailProps = getPropIdsFromStrings($this->store, $sendMailProps);
 
@@ -419,6 +411,31 @@ class BackendZarafa implements IBackend, ISearchProvider {
             throw new StatusException(sprintf("ZarafaBackend->SendMail(): No Outbox found or unable to create message: 0x%X", mapi_last_hresult()), SYNC_COMMONSTATUS_SERVERERROR);
 
         $mapimessage = mapi_folder_createmessage($outbox);
+
+        // Check if imtomapi function is available and use it to send the mime message.
+        // It is available since ZCP 7.0.6
+        // @see http://jira.zarafa.com/browse/ZCP-9508
+        if(function_exists('mapi_feature') && mapi_feature('INETMAPI_IMTOMAPI')) {
+            ZLog::Write(LOGLEVEL_DEBUG, "Use the mapi_inetmapi_imtomapi function");
+            $ab = mapi_openaddressbook($this->session);
+            mapi_inetmapi_imtomapi($this->session, $this->store, $ab, $mapimessage, $sm->mime, array());
+            mapi_message_savechanges($mapimessage);
+            mapi_message_submitmessage($mapimessage);
+            $hr = mapi_last_hresult();
+
+            if ($hr)
+                throw new StatusException(sprintf("ZarafaBackend->SendMail(): Error saving/submitting the message to the Outbox: 0x%X", mapi_last_hresult()), SYNC_COMMONSTATUS_MAILSUBMISSIONFAILED);
+
+            return true;
+        }
+
+        $mimeParams = array(    'decode_headers' => true,
+                                'decode_bodies' => true,
+                                'include_bodies' => true,
+                                'charset' => 'utf-8');
+
+        $mimeObject = new Mail_mimeDecode($sm->mime);
+        $message = $mimeObject->decode($mimeParams);
 
         //message properties to be set
         $mapiprops = array();
@@ -652,7 +669,7 @@ class BackendZarafa implements IBackend, ISearchProvider {
         mapi_message_submitmessage($mapimessage);
 
         if(mapi_last_hresult())
-            throw new StatusException(sprintf("ZarafaBackend->SendMail(): Error saving/submitting the message to the Outbox: 0x%X", $orig, $parent, mapi_last_hresult()), SYNC_COMMONSTATUS_MAILSUBMISSIONFAILED);
+            throw new StatusException(sprintf("ZarafaBackend->SendMail(): Error saving/submitting the message to the Outbox: 0x%X", mapi_last_hresult()), SYNC_COMMONSTATUS_MAILSUBMISSIONFAILED);
 
         ZLog::Write(LOGLEVEL_DEBUG, "ZarafaBackend->SendMail(): email submitted");
         return true;

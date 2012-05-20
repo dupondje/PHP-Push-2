@@ -169,22 +169,25 @@ class FileStateMachine implements IStateMachine {
      * @throws StateInvalidException
      */
     public function CleanStates($devid, $type, $key, $counter = false) {
-        foreach(glob($this->getFullFilePath($devid, $type, $key). "*", GLOB_NOSORT) as $state) {
-            $file = false;
-            if($counter !== false && preg_match('/([0-9]+)$/', $state, $matches)) {
-                if($matches[1] < $counter) {
-                    $candidate = $this->getFullFilePath($devid, $type, $key, (int)$matches[1]);
+        $matching_files = glob($this->getFullFilePath($devid, $type, $key). "*", GLOB_NOSORT);
+        if (is_array($matching_files)) {
+            foreach($matching_files as $state) {
+                $file = false;
+                if($counter !== false && preg_match('/([0-9]+)$/', $state, $matches)) {
+                    if($matches[1] < $counter) {
+                        $candidate = $this->getFullFilePath($devid, $type, $key, (int)$matches[1]);
 
-                    if ($candidate == $state)
-                        $file = $candidate;
+                        if ($candidate == $state)
+                            $file = $candidate;
+                    }
                 }
-            }
-            else if ($counter === false)
-                $file =  $this->getFullFilePath($devid, $type, $key);
+                else if ($counter === false)
+                    $file =  $this->getFullFilePath($devid, $type, $key);
 
-            if ($file !== false) {
-                ZLog::Write(LOGLEVEL_DEBUG, sprintf("FileStateMachine->CleanStates(): Deleting file: '%s'", $file));
-                unlink ($file);
+                if ($file !== false) {
+                    ZLog::Write(LOGLEVEL_DEBUG, sprintf("FileStateMachine->CleanStates(): Deleting file: '%s'", $file));
+                    unlink ($file);
+                }
             }
         }
     }

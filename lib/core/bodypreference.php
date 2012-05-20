@@ -1,10 +1,10 @@
 <?php
 /***********************************************
-* File      :   version.php
+* File      :   bodypreference.php
 * Project   :   Z-Push
-* Descr     :   version number
+* Descr     :   Holds body preference data
 *
-* Created   :   18.04.2008
+* Created   :   18.04.2012
 *
 * Copyright 2007 - 2011 Zarafa Deutschland GmbH
 *
@@ -41,5 +41,28 @@
 * Consult LICENSE file for details
 ************************************************/
 
-define("ZPUSH_VERSION", "2.0beta4-1254");
+class BodyPreference extends StateObject {
+    protected $unsetdata = array(   'truncationsize' => false,
+                                    'allornone' => false,
+                                    'preview' => false,
+                                );
+
+    /**
+     * expected magic getters and setters
+     *
+     * GetTruncationSize() + SetTruncationSize()
+     * GetAllOrNone() + SetAllOrNone()
+     * GetPreview() + SetPreview()
+     */
+
+    /**
+     * Indicates if this object has values
+     *
+     * @access public
+     * @return boolean
+     */
+    public function HasValues() {
+        return (count($this->data) > 0);
+    }
+}
 ?>

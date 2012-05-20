@@ -201,7 +201,7 @@ class Request {
             if (isset(self::$asProtocolVersion))
                 self::$headers["ms-asprotocolversion"] = self::$asProtocolVersion;
         }
-
+        ZLog::Write(LOGLEVEL_DEBUG, sprintf("Request::ProcessHeaders() ASVersion: %s", self::$asProtocolVersion));
     }
 
     /**

@@ -609,12 +609,18 @@ END;
     /**
      * Returns AS protocol versions which are supported
      *
+     * @param boolean   $valueOnly  (opt) default: false (also returns the header name)
+     *
      * @access public
      * @return string
      */
-    static public function GetSupportedProtocolVersions() {
+    static public function GetSupportedProtocolVersions($valueOnly = false) {
         $versions = implode(',', array_slice(self::$supportedASVersions, 0, (array_search(self::GetSupportedASVersion(), self::$supportedASVersions)+1)));
         ZLog::Write(LOGLEVEL_DEBUG, "ZPush::GetSupportedProtocolVersions(): " . $versions);
+
+        if ($valueOnly === true)
+            return $versions;
+
         return "MS-ASProtocolVersions: " . $versions;
     }
 

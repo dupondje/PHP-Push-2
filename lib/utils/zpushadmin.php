@@ -98,9 +98,15 @@ class ZPushAdmin {
             $device->SetData(ZPush::GetStateMachine()->GetState($devid, IStateMachine::DEVICEDATA), false);
             $device->StripData();
 
-            $lastsync = SyncCollections::GetLastSyncTimeOfDevice($device);
-            if ($lastsync)
-                $device->SetLastSyncTime($lastsync);
+            try {
+                $lastsync = SyncCollections::GetLastSyncTimeOfDevice($device);
+                if ($lastsync)
+                    $device->SetLastSyncTime($lastsync);
+            }
+            catch (StateInvalidException $sive) {
+                ZLog::Write(LOGLEVEL_WARN, sprintf("ZPushAdmin::GetDeviceDetails(): device '%s' of user '%s' has invalid states. Please sync to solve this issue.", $devid, $user));
+                $device->SetDeviceError("Invalid states. Please force synchronization!");
+            }
 
             return $device;
         }

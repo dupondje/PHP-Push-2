@@ -92,8 +92,8 @@ class ImportChangesStream implements IImportChanges {
 
         // checks if the next message may cause a loop or is broken
         if (ZPush::GetDeviceManager(false) && ZPush::GetDeviceManager()->DoNotStreamMessage($id, $message)) {
-            ZLog::Write(LOGLEVEL_DEBUG, sprintf("ImportChangesStream->ImportMessageChange('%s'): message ignored as requested by DeviceManager.", $id));
-            return true;
+            ZLog::Write(LOGLEVEL_DEBUG, sprintf("ImportChangesStream->ImportMessageChange('%s'): message ignored and requested to be removed from mobile", $id));
+            return $this->ImportMessageDeletion($id);
         }
 
         if ($message->flags === false || $message->flags === SYNC_NEWMESSAGE)

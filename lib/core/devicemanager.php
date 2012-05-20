@@ -91,6 +91,8 @@ class DeviceManager {
             throw new FatalNotImplementedException("Can not proceed without a device id.");
 
         $this->loopdetection = new LoopDetection();
+        $this->loopdetection->ProcessLoopDetectionInit();
+
         $this->stateManager = new StateManager();
         $this->stateManager->SetDevice($this->device);
     }
@@ -132,6 +134,11 @@ class DeviceManager {
      */
     public function Save() {
         // TODO save other stuff
+
+        // check if previousily ignored messages were synchronized for the current folder
+        // on multifolder operations of AS14 this is done by setLatestFolder()
+        if ($this->latestFolder !== false)
+            $this->checkBrokenMessages($this->latestFolder);
 
         // update the user agent and AS version on the device
         $this->device->SetUserAgent(Request::GetUserAgent());
@@ -379,13 +386,13 @@ class DeviceManager {
      * synchronization
      *
      * @param string        $id         message id
-     * @param SyncObject    $message
+     * @param SyncObject    &$message   the method could edit the message to change the flags
      *
      * @access public
      * @return boolean          returns true if the message should NOT be send!
      */
-    public function DoNotStreamMessage($id, $message) {
-        $folderid = $this->latestFolder;
+    public function DoNotStreamMessage($id, &$message) {
+        $folderid = $this->getLatestFolder();
 
         if (isset($message->parentid))
             $folder = $message->parentid;
@@ -402,8 +409,14 @@ class DeviceManager {
             return true;
         }
 
-        // all other messages are potentially synched now
-        $this->announceAcceptedMessage($folderid, $id);
+        // check if this message is broken
+        if ($this->device->HasIgnoredMessage($folderid, $id)) {
+            // reset the flags so the message is always streamed with <Add>
+            $message->flags = false;
+
+            // track the borken message to the message
+            $this->loopdetection->SetBrokenMessage($folderid, $id);
+        }
         return false;
     }
 
@@ -422,7 +435,7 @@ class DeviceManager {
         else
             $items = self::DEFAULTWINDOWSIZE;
 
-        $this->latestFolder = $folderid;
+        $this->setLatestFolder($folderid);
 
         // detect if this is a loop condition
         if ($this->loopdetection->Detect($folderid, $type, $uuid, $statecounter, $items, $queuedmessages))
@@ -437,6 +450,7 @@ class DeviceManager {
     /**
      * Sets the amount of items the device is requesting
      *
+     * @param string    $folderid
      * @param int       $maxItems
      *
      * @access public
@@ -475,6 +489,24 @@ class DeviceManager {
     }
 
     /**
+     * Removes all linked states of a specific folder.
+     * During next request the folder is resynchronized.
+     *
+     * @param string    $folderid
+     *
+     * @access public
+     * @return boolean
+     */
+    public function ForceFolderResync($folderid) {
+        ZLog::Write(LOGLEVEL_INFO, sprintf("DeviceManager->ForceFolderResync('%s'): folder resync", $folderid));
+
+        // delete folder states
+        StateManager::UnLinkState($this->device, $folderid);
+
+        return true;
+    }
+
+    /**
      * Removes all linked states from a device.
      * During next requests a full resync is triggered.
      *
@@ -509,6 +541,53 @@ class DeviceManager {
         return $this->hierarchySyncRequired;
     }
 
+    /**
+     * Indicates if a full hierarchy resync should be triggered due to loops
+     *
+     * @access public
+     * @return boolean
+     */
+    public function IsHierarchyFullResyncRequired() {
+        // check for potential process loops like described in ZP-5
+        return $this->loopdetection->ProcessLoopDetectionIsHierarchyResyncRequired();
+    }
+
+    /**
+     * Adds an Exceptions to the process tracking
+     *
+     * @param Exception     $exception
+     *
+     * @access public
+     * @return boolean
+     */
+    public function AnnounceProcessException($exception) {
+        return $this->loopdetection->ProcessLoopDetectionAddException($exception);
+    }
+
+    /**
+     * Adds a non-ok status for a folderid to the process tracking.
+     * On 'false' a hierarchy status is assumed
+     *
+     * @access public
+     * @return boolean
+     */
+    public function AnnounceProcessStatus($folderid, $status) {
+        return $this->loopdetection->ProcessLoopDetectionAddStatus($folderid, $status);
+    }
+
+    /**
+     * Indicates if the device needs an AS version update
+     *
+     * @access public
+     * @return boolean
+     */
+    public function AnnounceASVersion() {
+        $latest = ZPush::GetSupportedASVersion();
+        $announced = $this->device->GetAnnouncedASversion();
+        $this->device->SetAnnouncedASversion($latest);
+
+        return ($announced != $latest);
+    }
 
     /**----------------------------------------------------------------------------------------------------------
      * private DeviceManager methods
@@ -538,7 +617,6 @@ class DeviceManager {
         return true;
     }
 
-
     /**
      * Called when a SyncObject is not being streamed to the mobile.
      * The user can be informed so he knows about this issue
@@ -553,7 +631,7 @@ class DeviceManager {
      */
     public function AnnounceIgnoredMessage($folderid, $id, SyncObject $message, $reason = self::MSG_BROKEN_UNKNOWN) {
         if ($folderid === false)
-            $folderid = $this->latestFolder;
+            $folderid = $this->getLatestFolder();
 
         $class = get_class($message);
 
@@ -582,11 +660,61 @@ class DeviceManager {
      * @param string        $id         message id
      *
      * @access public
-     * @return boolean          returns true if the message should NOT be send
+     * @return boolean          returns true if the message was ignored before
      */
     private function announceAcceptedMessage($folderid, $id) {
-        if ($this->device->RemoveIgnoredMessage($folderid, $id))
-            ZLog::Write(LOGLEVEL_INFO, sprintf("DeviceManager->announceAcceptedMessage('%s', '%s'): cleared previosily ignored message as message was sucessfully streamed",$folderid, $id));
+        if ($this->device->RemoveIgnoredMessage($folderid, $id)) {
+            ZLog::Write(LOGLEVEL_INFO, sprintf("DeviceManager->announceAcceptedMessage('%s', '%s'): cleared previosily ignored message as message is sucessfully streamed",$folderid, $id));
+            return true;
+        }
+        return false;
+    }
+
+    /**
+     * Checks if there were broken messages streamed to the mobile.
+     * If the sync completes/continues without further erros they are marked as accepted
+     *
+     * @param string    $folderid       folderid which is to be checked
+     *
+     * @access private
+     * @return boolean
+     */
+    private function checkBrokenMessages($folderid) {
+        // check for correctly synchronized messages of the folder
+        foreach($this->loopdetection->GetSyncedButBeforeIgnoredMessages($folderid) as $okID) {
+            $this->announceAcceptedMessage($folderid, $okID);
+        }
+        return true;
+    }
+
+    /**
+     * Setter for the latest folder id
+     * on multi-folder operations of AS 14 this is used to set the new current folder id
+     *
+     * @param string    $folderid       the current folder
+     *
+     * @access private
+     * @return boolean
+     */
+    private function setLatestFolder($folderid) {
+        // this is a multi folder operation
+        // check on ignoredmessages before discaring the folderid
+        if ($this->latestFolder !== false)
+            $this->checkBrokenMessages($this->latestFolder);
+
+        $this->latestFolder = $folderid;
+
+        return true;
+    }
+
+    /**
+     * Getter for the latest folder id
+     *
+     * @access private
+     * @return string    $folderid       the current folder
+     */
+    private function getLatestFolder() {
+        return $this->latestFolder;
     }
 }
 

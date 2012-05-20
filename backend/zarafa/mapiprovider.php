@@ -491,8 +491,10 @@ class MAPIProvider {
 
         $fromname = $fromaddr = "";
 
-        if(isset($messageprops[$emailproperties["representingname"]]))
-            $fromname = $messageprops[$emailproperties["representingname"]];
+        if(isset($messageprops[$emailproperties["representingname"]])) {
+            // remove encapsulating double quotes from the representingname
+            $fromname = preg_replace('/^\"(.*)\"$/',"\${1}", $messageprops[$emailproperties["representingname"]]);
+        }
         if(isset($messageprops[$emailproperties["representingentryid"]]))
             $fromaddr = $this->getSMTPAddressFromEntryID($messageprops[$emailproperties["representingentryid"]]);
 
@@ -612,7 +614,7 @@ class MAPIProvider {
             if(isset($row[PR_ATTACH_NUM])) {
                 $mapiattach = mapi_message_openattach($mapimessage, $row[PR_ATTACH_NUM]);
 
-                $attachprops = mapi_getprops($mapiattach, array(PR_ATTACH_LONG_FILENAME, PR_ATTACH_FILENAME, PR_ATTACHMENT_HIDDEN, PR_ATTACH_CONTENT_ID, PR_ATTACH_CONTENT_ID_W));
+                $attachprops = mapi_getprops($mapiattach, array(PR_ATTACH_LONG_FILENAME, PR_ATTACH_FILENAME, PR_ATTACHMENT_HIDDEN, PR_ATTACH_CONTENT_ID, PR_ATTACH_CONTENT_ID_W, PR_ATTACH_MIME_TAG, PR_ATTACH_MIME_TAG_W));
 
                 $stream = mapi_openpropertytostream($mapiattach, PR_ATTACH_DATA_BIN);
                 if($stream) {
@@ -620,7 +622,26 @@ class MAPIProvider {
 
                     if (Request::GetProtocolVersion() >= 12.0) {
                         $attach = new SyncBaseAttachment();
-                        $attach->displayname = w2u((isset($attachprops[PR_ATTACH_LONG_FILENAME])) ? $attachprops[PR_ATTACH_LONG_FILENAME] : ((isset($attachprops[PR_ATTACH_FILENAME])) ? $attachprops[PR_ATTACH_FILENAME] : "attachment.bin"));
+                    }
+                    else {
+                        $attach = new SyncAttachment();
+                    }
+
+                    // the displayname is handled equal for all AS versions
+                    $attach->displayname = w2u((isset($attachprops[PR_ATTACH_LONG_FILENAME])) ? $attachprops[PR_ATTACH_LONG_FILENAME] : ((isset($attachprops[PR_ATTACH_FILENAME])) ? $attachprops[PR_ATTACH_FILENAME] : "attachment.bin"));
+
+                    // fix attachment name in case of inline images
+                    if ($attach->displayname == "inline.txt" && (isset($attachprops[PR_ATTACH_MIME_TAG]) || $attachprops[PR_ATTACH_MIME_TAG_W])) {
+                        $mimetype = (isset($attachprops[PR_ATTACH_MIME_TAG]))?$attachprops[PR_ATTACH_MIME_TAG]:$attachprops[PR_ATTACH_MIME_TAG_W];
+                        $mime = explode("/", $mimetype);
+
+                        if (count($mime) == 2 && $mime[0] == "image") {
+                            $attach->displayname = "inline." . $mime[1];
+                        }
+                    }
+
+                    // set AS version specific parameters
+                    if (Request::GetProtocolVersion() >= 12.0) {
                         $attach->filereference = $entryid.":".$row[PR_ATTACH_NUM];
                         $attach->method = 1;
                         $attach->estimatedDataSize = $stat["cb"];
@@ -639,9 +660,7 @@ class MAPIProvider {
                         array_push($message->asattachments, $attach);
                     }
                     else {
-                        $attach = new SyncAttachment();
                         $attach->attsize = $stat["cb"];
-                        $attach->displayname = w2u((isset($attachprops[PR_ATTACH_LONG_FILENAME])) ? $attachprops[PR_ATTACH_LONG_FILENAME] : ((isset($attachprops[PR_ATTACH_FILENAME])) ? $attachprops[PR_ATTACH_FILENAME] : "attachment.bin"));
                         $attach->attname = $entryid.":".$row[PR_ATTACH_NUM];
                         if(!isset($message->attachments))
                             $message->attachments = array();
@@ -988,6 +1007,11 @@ class MAPIProvider {
         if(isset($appointment->reminder) && $appointment->reminder > 0) {
             // Set 'flagdueby' to correct value (start - reminderminutes)
             $props[$appointmentprops["flagdueby"]] = $appointment->starttime - $appointment->reminder * 60;
+            $props[$appointmentprops["remindertime"]] = $appointment->reminder;
+        }
+        // unset the reminder
+        else {
+            $props[$appointmentprops["reminderset"]] = false;
         }
 
         if (isset($appointment->asbody)) {
@@ -1187,23 +1211,22 @@ class MAPIProvider {
 
 
         //set addresses
-        $this->setAddress("home", u2w($contact->homecity), u2w($contact->homecountry), u2w($contact->homepostalcode), u2w($contact->homestate), u2w($contact->homestreet), $props, $contactprops);
-        $this->setAddress("business", u2w($contact->businesscity), u2w($contact->businesscountry), u2w($contact->businesspostalcode), u2w($contact->businessstate), u2w($contact->businessstreet), $props, $contactprops);
-        $this->setAddress("other", u2w($contact->othercity), u2w($contact->othercountry), u2w($contact->otherpostalcode), u2w($contact->otherstate), u2w($contact->otherstreet), $props, $contactprops);
+        $this->setAddress("home", $contact->homecity, $contact->homecountry, $contact->homepostalcode, $contact->homestate, $contact->homestreet, $props, $contactprops);
+        $this->setAddress("business", $contact->businesscity, $contact->businesscountry, $contact->businesspostalcode, $contact->businessstate, $contact->businessstreet, $props, $contactprops);
+        $this->setAddress("other", $contact->othercity, $contact->othercountry, $contact->otherpostalcode, $contact->otherstate, $contact->otherstreet, $props, $contactprops);
 
-//TODO change mailing address handling
         //set the mailing address and its type
         if (isset($props[$contactprops["businessaddress"]])) {
             $props[$contactprops["mailingaddress"]] = 2;
-            $this->setMailingAddress($props[$contactprops["businesscity"]], $props[$contactprops["businesscountry"]], $props[$contactprops["businesspostalcode"]], $props[$contactprops["businessstate"]], $props[$contactprops["businessstreet"]], $props[$contactprops["businessaddress"]], $props, $contactprops);
+            $this->setMailingAddress($contact->businesscity, $contact->businesscountry, $contact->businesspostalcode, $contact->businessstate, $contact->businessstreet, $props[$contactprops["businessaddress"]], $props, $contactprops);
         }
         elseif (isset($props[$contactprops["homeaddress"]])) {
             $props[$contactprops["mailingaddress"]] = 1;
-            $this->setMailingAddress($props[$contactprops["homecity"]], $props[$contactprops["homecountry"]], $props[$contactprops["homepostalcode"]], $props[$contactprops["homestate"]], $props[$contactprops["homestreet"]], $props[$contactprops["homeaddress"]], $props, $contactprops);
+            $this->setMailingAddress($contact->homecity, $contact->homecountry, $contact->homepostalcode, $contact->homestate, $contact->homestreet, $props[$contactprops["homeaddress"]], $props, $contactprops);
         }
         elseif (isset($props[$contactprops["otheraddress"]])) {
             $props[$contactprops["mailingaddress"]] = 3;
-            $this->setMailingAddress($props[$contactprops["othercity"]], $props[$contactprops["othercountry"]], $props[$contactprops["otherpostalcode"]], $props[$contactprops["otherstate"]], $props[$contactprops["otherstreet"]], $props[$contactprops["otheraddress"]], $props, $contactprops);
+            $this->setMailingAddress($contact->othercity, $contact->othercountry, $contact->otherpostalcode, $contact->otherstate, $contact->otherstreet, $props[$contactprops["otheraddress"]], $props, $contactprops);
         }
 
         if (isset($contact->picture)) {
@@ -1867,16 +1890,16 @@ class MAPIProvider {
      * @access private
      * @return
      */
-     private function setAddress($type, $city, $country, $postalcode, $state, $street, &$props, &$properties) {
-        if (isset($city)) $props[$properties[$type."city"]] = $city;
+     private function setAddress($type, &$city, &$country, &$postalcode, &$state, &$street, &$props, &$properties) {
+        if (isset($city)) $props[$properties[$type."city"]] = $city = u2w($city);
 
-        if (isset($country)) $props[$properties[$type."country"]] = $country;
+        if (isset($country)) $props[$properties[$type."country"]] = $country = u2w($country);
 
-        if (isset($postalcode)) $props[$properties[$type."postalcode"]] = $postalcode;
+        if (isset($postalcode)) $props[$properties[$type."postalcode"]] = $postalcode = u2w($postalcode);
 
-        if (isset($state)) $props[$properties[$type."state"]] = $state;
+        if (isset($state)) $props[$properties[$type."state"]] = $state = u2w($state);
 
-        if (isset($street)) $props[$properties[$type."street"]] = $street;
+        if (isset($street)) $props[$properties[$type."street"]] = $street = u2w($street);
 
         //set composed address
         $address = Utils::BuildAddressString($street, $postalcode, $city, $state, $country);

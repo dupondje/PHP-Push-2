@@ -544,13 +544,13 @@ class BackendCalDAV extends BackendDiff {
 						$trigger = $this->_MakeUTCDate($property->Value());
 						$begin = $start = date_create("@" . $message->starttime);
 						$interval = date_diff($begin, $trigger);
-						$message->reminder = $interval->format("i");
+						$message->reminder = $interval->format("%i") + $interval->format("%h") * 60;
 					}
 					elseif (!array_key_exists("VALUE", $parameters) || $parameters["VALUE"] == "DURATION")
 					{
 						$val = str_replace("-", "", $property->Value());
 						$interval = new DateInterval($val);
-						$message->reminder = $interval->format("i");
+						$message->reminder = $interval->format("%i") + $interval->format("%h") * 60;
 					}
 				}
 			}

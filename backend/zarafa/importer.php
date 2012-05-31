@@ -338,11 +338,16 @@ class ImportChangesICS implements IImportChanges {
      */
     public function ImportMessageReadFlag($id, $flags) {
         // check for conflicts
+        /*
+         * Checking for conflicts is correct at this point, but is a very expensive operation.
+         * If the message was deleted, only an error will be shown.
+         *
         $this->lazyLoadConflicts();
         if($this->memChanges->IsDeleted($id)) {
             ZLog::Write(LOGLEVEL_INFO, sprintf("ImportChangesICS->ImportMessageReadFlag('%s'): Conflict detected. Data is already deleted. Request will be ignored.", $id));
             return true;
         }
+         */
 
         $readstate = array ( "sourcekey" => hex2bin($id), "flags" => $flags);
 

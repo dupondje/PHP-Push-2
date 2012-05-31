@@ -122,7 +122,7 @@ class SyncProvisioning extends SyncObject {
                                                                                                                         self::STREAMER_CHECK_CMPLOWER   => 17  )),
 
                     SYNC_PROVISION_MAXATTSIZE                           => array (  self::STREAMER_VAR      => "maxattsize",
-                                                                                    self::STREAMER_TYPE     => self::STREAMER_TYPE_SEND_EMPTY,
+                                                                                    self::STREAMER_PROP     => self::STREAMER_TYPE_SEND_EMPTY,
                                                                                     self::STREAMER_CHECKS   => array(   self::STREAMER_CHECK_CMPHIGHER  => -1 )),
 
                     SYNC_PROVISION_ALLOWSIMPLEDEVPW                     => array (  self::STREAMER_VAR      => "allowsimpledevpw",

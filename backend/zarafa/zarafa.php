@@ -399,6 +399,14 @@ class BackendZarafa implements IBackend, ISearchProvider {
         foreach(preg_split("/((\r)?\n)/", $sm->mime) as $rfc822line)
             ZLog::Write(LOGLEVEL_WBXML, "RFC822: ". $rfc822line);
 
+        $mimeParams = array('decode_headers' => true,
+                            'decode_bodies' => true,
+                            'include_bodies' => true,
+                            'charset' => 'utf-8');
+
+        $mimeObject = new Mail_mimeDecode($sm->mime);
+        $message = $mimeObject->decode($mimeParams);
+
         $sendMailProps = MAPIMapping::GetSendMailProperties();
         $sendMailProps = getPropIdsFromStrings($this->store, $sendMailProps);
 
@@ -412,6 +420,11 @@ class BackendZarafa implements IBackend, ISearchProvider {
 
         $mapimessage = mapi_folder_createmessage($outbox);
 
+        //message properties to be set
+        $mapiprops = array();
+        // only save the outgoing in sent items folder if the mobile requests it
+        $mapiprops[$sendMailProps["sentmailentryid"]] = $storeprops[$sendMailProps["ipmsentmailentryid"]];
+
         // Check if imtomapi function is available and use it to send the mime message.
         // It is available since ZCP 7.0.6
         // @see http://jira.zarafa.com/browse/ZCP-9508
@@ -419,6 +432,20 @@ class BackendZarafa implements IBackend, ISearchProvider {
             ZLog::Write(LOGLEVEL_DEBUG, "Use the mapi_inetmapi_imtomapi function");
             $ab = mapi_openaddressbook($this->session);
             mapi_inetmapi_imtomapi($this->session, $this->store, $ab, $mapimessage, $sm->mime, array());
+
+            mapi_setprops($mapimessage, $mapiprops);
+
+            $this->addRecipients($message->headers, $mapimessage);
+
+            // Delete the PR_SENT_REPRESENTING_* properties because some android devices
+            // do not send neither From nor Sender header causing empty PR_SENT_REPRESENTING_NAME and
+            // PR_SENT_REPRESENTING_EMAIL_ADDRESS properties and "broken" PR_SENT_REPRESENTING_ENTRYID
+            // which results in spooler not being able to send the message.
+            // @see http://jira.zarafa.com/browse/ZP-85
+            mapi_deleteprops($mapimessage,
+                array(  $sendMailProps["sentrepresentingname"], $sendMailProps["sentrepresentingemail"], $sendMailProps["representingentryid"],
+                        $sendMailProps["sentrepresentingaddt"], $sendMailProps["sentrepresentinsrchk"]));
+
             mapi_message_savechanges($mapimessage);
             mapi_message_submitmessage($mapimessage);
             $hr = mapi_last_hresult();
@@ -426,22 +453,11 @@ class BackendZarafa implements IBackend, ISearchProvider {
             if ($hr)
                 throw new StatusException(sprintf("ZarafaBackend->SendMail(): Error saving/submitting the message to the Outbox: 0x%X", mapi_last_hresult()), SYNC_COMMONSTATUS_MAILSUBMISSIONFAILED);
 
+            ZLog::Write(LOGLEVEL_DEBUG, "ZarafaBackend->SendMail(): email submitted");
             return true;
         }
 
-        $mimeParams = array(    'decode_headers' => true,
-                                'decode_bodies' => true,
-                                'include_bodies' => true,
-                                'charset' => 'utf-8');
-
-        $mimeObject = new Mail_mimeDecode($sm->mime);
-        $message = $mimeObject->decode($mimeParams);
-
-        //message properties to be set
-        $mapiprops = array();
         $mapiprops[$sendMailProps["subject"]] = u2wi(isset($message->headers["subject"])?$message->headers["subject"]:"");
-        // only save the outgoing in sent items folder if the mobile requests it
-        $mapiprops[$sendMailProps["sentmailentryid"]] = $storeprops[$sendMailProps["ipmsentmailentryid"]];
         $mapiprops[$sendMailProps["messageclass"]] = "IPM.Note";
         $mapiprops[$sendMailProps["deliverytime"]] = time();
 

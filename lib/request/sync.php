@@ -472,14 +472,18 @@ class Sync extends RequestProcessor {
                                         try {
                                             $actiondata["modifyids"][] = $serverid;
 
-                                            if (!$message->Check()) {
+                                            // check incoming message without logging WARN messages about errors
+                                            if (!$message->Check(true)) {
                                                 $actiondata["statusids"][$serverid] = SYNC_STATUS_CLIENTSERVERCONVERSATIONERROR;
                                             }
                                             else {
-                                                if(isset($message->read)) // Currently, 'read' is only sent by the PDA when it is ONLY setting the read flag.
+                                                if(isset($message->read)) {
+                                                    // Currently, 'read' is only sent by the PDA when it is ONLY setting the read flag.
                                                     $importer->ImportMessageReadFlag($serverid, $message->read);
-                                                elseif (!isset($message->flag))
+                                                }
+                                                elseif (!isset($message->flag)) {
                                                     $importer->ImportMessageChange($serverid, $message);
+                                                }
 
                                                 // email todoflags - some devices send todos flags together with read flags,
                                                 // so they have to be handled separately
@@ -497,7 +501,8 @@ class Sync extends RequestProcessor {
                                         break;
                                     case SYNC_ADD:
                                         try {
-                                            if (!$message->Check()) {
+                                            // check incoming message without logging WARN messages about errors
+                                             if (!$message->Check(true)) {
                                                 $actiondata["clientids"][$clientid] = false;
                                                 $actiondata["statusids"][$clientid] = SYNC_STATUS_CLIENTSERVERCONVERSATIONERROR;
                                             }
@@ -971,8 +976,7 @@ class Sync extends RequestProcessor {
                         }
 
                         // save SyncParameters
-                        // TODO check if we need changed data in case of a StatusException
-                        if ($status == SYNC_STATUS_SUCCESS)
+                        if ($status == SYNC_STATUS_SUCCESS && empty($actiondata["fetchids"]))
                             $sc->SaveCollection($spa);
 
                     } // END foreach collection

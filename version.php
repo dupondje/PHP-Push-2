@@ -41,5 +41,5 @@
 * Consult LICENSE file for details
 ************************************************/
 
-define("ZPUSH_VERSION", "2.0beta4-1254");
+define("ZPUSH_VERSION", "2.0beta5-1261");
 ?>

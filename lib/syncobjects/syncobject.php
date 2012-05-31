@@ -213,22 +213,30 @@ abstract class SyncObject extends Streamer {
      *     STREAMER_CHECK_CMPLOWER      compares if the current parameter is lower as a literal or another parameter of the same object
      *     STREAMER_CHECK_CMPHIGHER     compares if the current parameter is higher as a literal or another parameter of the same object
      *
+     * @param boolean   $logAsDebug     (opt) default is false, so messages are logged in WARN log level
+     *
      * @access public
      * @return boolean
      */
-    public function Check() {
+    public function Check($logAsDebug = false) {
+        $defaultLogLevel = LOGLEVEL_WARN;
+
+        // in some cases non-false checks should not provoke a WARN log but only a DEBUG log
+        if ($logAsDebug)
+            $defaultLogLevel = LOGLEVEL_DEBUG;
+
         $objClass = get_class($this);
         foreach ($this->mapping as $k=>$v) {
 
             // check sub-objects recursively
             if (isset($v[self::STREAMER_TYPE]) && isset($this->$v[self::STREAMER_VAR])) {
                 if ($this->$v[self::STREAMER_VAR] instanceof SyncObject) {
-                    if (! $this->$v[self::STREAMER_VAR]->check())
+                    if (! $this->$v[self::STREAMER_VAR]->Check())
                         return false;
                 }
                 else if (is_array($this->$v[self::STREAMER_VAR])) {
                     foreach ($this->$v[self::STREAMER_VAR] as $subobj)
-                        if ($subobj instanceof SyncObject && !$subobj->check())
+                        if ($subobj instanceof SyncObject && !$subobj->Check())
                             return false;
                 }
             }
@@ -241,34 +249,34 @@ abstract class SyncObject extends Streamer {
                         // requested to set to 0
                         if ($condition === self::STREAMER_CHECK_SETZERO) {
                             $this->$v[self::STREAMER_VAR] = 0;
-                            ZLog::Write(LOGLEVEL_WARN, sprintf("SyncObject->Check(): Fixed object from type %s: parameter '%s' is set to 0", $objClass, $v[self::STREAMER_VAR]));
+                            ZLog::Write($defaultLogLevel, sprintf("SyncObject->Check(): Fixed object from type %s: parameter '%s' is set to 0", $objClass, $v[self::STREAMER_VAR]));
                         }
                         // requested to be set to 1
                         else if ($condition === self::STREAMER_CHECK_SETONE) {
                             $this->$v[self::STREAMER_VAR] = 1;
-                            ZLog::Write(LOGLEVEL_WARN, sprintf("SyncObject->Check(): Fixed object from type %s: parameter '%s' is set to 1", $objClass, $v[self::STREAMER_VAR]));
+                            ZLog::Write($defaultLogLevel, sprintf("SyncObject->Check(): Fixed object from type %s: parameter '%s' is set to 1", $objClass, $v[self::STREAMER_VAR]));
                         }
                         // requested to be set to 2
                         else if ($condition === self::STREAMER_CHECK_SETTWO) {
                             $this->$v[self::STREAMER_VAR] = 2;
-                            ZLog::Write(LOGLEVEL_WARN, sprintf("SyncObject->Check(): Fixed object from type %s: parameter '%s' is set to 2", $objClass, $v[self::STREAMER_VAR]));
+                            ZLog::Write($defaultLogLevel, sprintf("SyncObject->Check(): Fixed object from type %s: parameter '%s' is set to 2", $objClass, $v[self::STREAMER_VAR]));
                         }
                         // requested to be set to ''
                         else if ($condition === self::STREAMER_CHECK_SETEMPTY) {
                             if (!isset($this->$v[self::STREAMER_VAR])) {
                                 $this->$v[self::STREAMER_VAR] = '';
-                                ZLog::Write(LOGLEVEL_WARN, sprintf("SyncObject->Check(): Fixed object from type %s: parameter '%s' is set to ''", $objClass, $v[self::STREAMER_VAR]));
+                                ZLog::Write($defaultLogLevel, sprintf("SyncObject->Check(): Fixed object from type %s: parameter '%s' is set to ''", $objClass, $v[self::STREAMER_VAR]));
                             }
                         }
                         // there is another value !== false
                         else if ($condition !== false) {
                             $this->$v[self::STREAMER_VAR] = $condition;
-                            ZLog::Write(LOGLEVEL_WARN, sprintf("SyncObject->Check(): Fixed object from type %s: parameter '%s' is set to '%s'", $objClass, $v[self::STREAMER_VAR], $condition));
+                            ZLog::Write($defaultLogLevel, sprintf("SyncObject->Check(): Fixed object from type %s: parameter '%s' is set to '%s'", $objClass, $v[self::STREAMER_VAR], $condition));
 
                         }
                         // no fix available!
                         else {
-                            ZLog::Write(LOGLEVEL_WARN, sprintf("SyncObject->Check(): Unmet condition in object from type %s: parameter '%s' is required but not set. Check failed!", $objClass, $v[self::STREAMER_VAR]));
+                            ZLog::Write($defaultLogLevel, sprintf("SyncObject->Check(): Unmet condition in object from type %s: parameter '%s' is required but not set. Check failed!", $objClass, $v[self::STREAMER_VAR]));
                             return false;
                         }
                     } // end STREAMER_CHECK_REQUIRED
@@ -279,7 +287,7 @@ abstract class SyncObject extends Streamer {
                         if ($this->$v[self::STREAMER_VAR] != 0 && $this->$v[self::STREAMER_VAR] != 1) {
                             $newval = $condition === self::STREAMER_CHECK_SETZERO ? 0:1;
                             $this->$v[self::STREAMER_VAR] = $newval;
-                            ZLog::Write(LOGLEVEL_WARN, sprintf("SyncObject->Check(): Fixed object from type %s: parameter '%s' is set to '%s' as it was not 0 or 1", $objClass, $v[self::STREAMER_VAR], $newval));
+                            ZLog::Write($defaultLogLevel, sprintf("SyncObject->Check(): Fixed object from type %s: parameter '%s' is set to '%s' as it was not 0 or 1", $objClass, $v[self::STREAMER_VAR], $newval));
                         }
                     }// end STREAMER_CHECK_ZEROORONE
 
@@ -287,7 +295,7 @@ abstract class SyncObject extends Streamer {
                     // check STREAMER_CHECK_ONEVALUEOF
                     if ($rule === self::STREAMER_CHECK_ONEVALUEOF && isset($this->$v[self::STREAMER_VAR])) {
                         if (!in_array($this->$v[self::STREAMER_VAR], $condition)) {
-                            ZLog::Write(LOGLEVEL_WARN, sprintf("SyncObject->Check(): object from type %s: parameter '%s'->'%s' is not in the range of allowed values.", $objClass, $v[self::STREAMER_VAR], $this->$v[self::STREAMER_VAR]));
+                            ZLog::Write($defaultLogLevel, sprintf("SyncObject->Check(): object from type %s: parameter '%s'->'%s' is not in the range of allowed values.", $objClass, $v[self::STREAMER_VAR], $this->$v[self::STREAMER_VAR]));
                             return false;
                         }
                     }// end STREAMER_CHECK_ONEVALUEOF

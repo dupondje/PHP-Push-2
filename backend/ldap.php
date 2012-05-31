@@ -16,10 +16,14 @@ include_once('lib/default/diffbackend/diffbackend.php');
 class BackendLDAP extends BackendDiff {
 	
 	private $ldap_link;
+	private $user;
 	
 	public function Logon($username, $domain, $password)
 	{
+		$this->user = $username;
+		$user_dn = str_replace('%u', $username, LDAP_USER_DN);
 		$this->ldap_link = ldap_connect(LDAP_SERVER, LDAP_PORT);
+		ldap_set_option($this->ldap_link, LDAP_OPT_PROTOCOL_VERSION, 3);
 		if (ldap_bind($this->ldap_link, $username, $password))
 		{
 			ZLog::Write(LOGLEVEL_INFO, sprintf("BackendLDAP->Logon(): User '%s' is authenticated on LDAP", $username));
@@ -119,6 +123,7 @@ class BackendLDAP extends BackendDiff {
 		$base_dns = LDAP_BASE_DNS;
 		foreach ($base_dns as $base_dn)
 		{
+			$base_dn = str_replace('%u', $this->user, $base_dn);
 			$results = ldap_list($this->ldap_link, $base_dn, $filter, $attributes);
 			ZLog::Write(LOGLEVEL_DEBUG, sprintf("BackendLDAP->GetMessageList(): Got %s contacts.", ldap_count_entries($this->ldap_link, $results)));
 			$entries = ldap_get_entries($this->ldap_link, $results);
@@ -140,6 +145,7 @@ class BackendLDAP extends BackendDiff {
 		$base_dns = LDAP_BASE_DNS;
 		foreach ($base_dns as $base_dn)
 		{
+			$base_dn = str_replace('%u', $this->user, $base_dn);
 			$result_id = ldap_list($this->ldap_link, $base_dn, "(entryUUID=".$id.")");
 			if ($result_id)
 			{
@@ -253,6 +259,7 @@ class BackendLDAP extends BackendDiff {
 		$base_dns = LDAP_BASE_DNS;
 		foreach ($base_dns as $base_dn)
 		{
+			$base_dn = str_replace('%u', $this->user, $base_dn);
 			$result_id = ldap_list($this->ldap_link, $base_dn, "(entryUUID=".$id.")", array("modifyTimestamp"));
 			if ($result_id)
 			{
@@ -286,6 +293,7 @@ class BackendLDAP extends BackendDiff {
 		$base_dns = LDAP_BASE_DNS;
 		foreach ($base_dns as $base_dn)
 		{
+			$base_dn = str_replace('%u', $this->user, $base_dn);
 			$result_id = ldap_list($this->ldap_link, $base_dn, "(entryUUID=".$id.")", array("entryUUID"));
 			if ($result_id)
 			{

@@ -541,7 +541,7 @@ class BackendCalDAV extends BackendDiff {
 					$parameters = $property->Parameters();
 					if (array_key_exists("VALUE", $parameters) && $parameters["VALUE"] == "DATE-TIME")
 					{
-						$trigger = $this->_MakeUTCDate($property->Value());
+						$trigger = date_create("@" . $this->_MakeUTCDate($property->Value()));
 						$begin = date_create("@" . $message->starttime);
 						$interval = date_diff($begin, $trigger);
 						$message->reminder = $interval->format("%i") + $interval->format("%h") * 60 + $interval->format("%a") * 60 * 24;

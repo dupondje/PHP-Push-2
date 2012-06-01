@@ -167,6 +167,7 @@
     define('CALDAV_SERVER', 'http://calendar.domain.com');
     define('CALDAV_PORT', '80');
     define('CALDAV_PATH', '/caldav.php/%u/');
+    define('CALDAV_PERSONAL', 'home'); //Personal CalDAV folder
 
     // **********************
     //  BackendLDAP settings

@@ -118,8 +118,7 @@ class BackendLDAP extends BackendDiff {
 		$filter = sprintf('(modifyTimestamp>="%s")', $cutoff);
 		$attributes = array("entryUUID", "modifyTimestamp");
 		$messages = array();
-		
-		
+
 		$base_dns = LDAP_BASE_DNS;
 		foreach ($base_dns as $base_dn)
 		{
@@ -152,7 +151,7 @@ class BackendLDAP extends BackendDiff {
 				$entry_id = ldap_first_entry($this->ldap_link, $result_id);
 				if ($entry_id)
 				{
-					return _ParseLDAPMessage($result_id, $entry_id);
+					return $this->_ParseLDAPMessage($result_id, $entry_id);
 				}
 			}
 		}

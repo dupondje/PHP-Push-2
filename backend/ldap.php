@@ -119,7 +119,7 @@ class BackendLDAP extends BackendDiff {
 		$attributes = array("entryUUID", "modifyTimestamp");
 		$messages = array();
 
-		$base_dns = LDAP_BASE_DNS;
+		$base_dns = explode("|", LDAP_BASE_DNS);
 		foreach ($base_dns as $base_dn)
 		{
 			$base_dn = str_replace('%u', $this->user, $base_dn);
@@ -141,7 +141,7 @@ class BackendLDAP extends BackendDiff {
 	public function GetMessage($folderid, $id, $contentparameters)
 	{
 		ZLog::Write(LOGLEVEL_DEBUG, sprintf("BackendLDAP->GetMessage('%s','%s')", $folderid,  $id));
-		$base_dns = LDAP_BASE_DNS;
+		$base_dns = explode("|", LDAP_BASE_DNS);
 		foreach ($base_dns as $base_dn)
 		{
 			$base_dn = str_replace('%u', $this->user, $base_dn);
@@ -255,7 +255,7 @@ class BackendLDAP extends BackendDiff {
 	
 	public function StatMessage($folderid, $id)
 	{
-		$base_dns = LDAP_BASE_DNS;
+		$base_dns = explode("|", LDAP_BASE_DNS);
 		foreach ($base_dns as $base_dn)
 		{
 			$base_dn = str_replace('%u', $this->user, $base_dn);
@@ -289,7 +289,7 @@ class BackendLDAP extends BackendDiff {
 	
 	public function DeleteMessage($folderid, $id)
 	{
-		$base_dns = LDAP_BASE_DNS;
+		$base_dns = explode("|", LDAP_BASE_DNS);
 		foreach ($base_dns as $base_dn)
 		{
 			$base_dn = str_replace('%u', $this->user, $base_dn);

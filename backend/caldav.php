@@ -344,11 +344,16 @@ class BackendCalDAV extends BackendDiff {
 		 
 		$ical = new iCalComponent($data);
 		$timezones = $ical->GetComponents("VTIMEZONE");
+		$timezone = "";
 		if (count($timezones) > 0)
 		{
 			$timezone = $this->_ParseTimezone($timezones[0]->GetPValue("TZID"));
-			$message->timezone = $this->_GetTimezoneString($timezone);
 		}
+		if (!$timezone)
+		{
+			$timezone = date_default_timezone_get();
+		}
+		$message->timezone = $this->_GetTimezoneString($timezone);
 		 
 		$vevents = $ical->GetComponents("VTIMEZONE", false);
 		foreach ($vevents as $event)
@@ -517,12 +522,30 @@ class BackendCalDAV extends BackendDiff {
 					$categories = explode(",", $property->Value());
 					$message->categories = $categories;
 					break;
+
+				case "EXDATE":
+					$exception = new SyncAppointmentException();
+					$exception->deleted = "1";
+					$exception->exceptionstarttime = $this->_MakeUTCDate($property->Value());
+					if (isset($message->exceptions) && is_array($message->exceptions))
+					{
+						$message->exceptions[] = $exception;
+					}
+					else
+					{
+						$message->exceptions = array($exception);
+					}
+					break;
 				
 				//We can ignore the following
 				case "PRIORITY":
 				case "SEQUENCE":
 				case "CREATED":
 				case "DTSTAMP":
+				case "X-MOZ-GENERATION":
+				case "X-MOZ-LASTACK":
+				case "X-LIC-ERROR":
+				case "RECURRENCE-ID":
 					break;
 
 				default:

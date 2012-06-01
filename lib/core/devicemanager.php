@@ -404,7 +404,7 @@ class DeviceManager {
         }
 
         // message is semantically incorrect
-        if (!$message->Check()) {
+        if (!$message->Check(true)) {
             $this->AnnounceIgnoredMessage($folderid, $id, $message, self::MSG_BROKEN_SEMANTICERR);
             return true;
         }

@@ -231,12 +231,12 @@ abstract class SyncObject extends Streamer {
             // check sub-objects recursively
             if (isset($v[self::STREAMER_TYPE]) && isset($this->$v[self::STREAMER_VAR])) {
                 if ($this->$v[self::STREAMER_VAR] instanceof SyncObject) {
-                    if (! $this->$v[self::STREAMER_VAR]->Check())
+                    if (! $this->$v[self::STREAMER_VAR]->Check($logAsDebug))
                         return false;
                 }
                 else if (is_array($this->$v[self::STREAMER_VAR])) {
                     foreach ($this->$v[self::STREAMER_VAR] as $subobj)
-                        if ($subobj instanceof SyncObject && !$subobj->Check())
+                        if ($subobj instanceof SyncObject && !$subobj->Check($logAsDebug))
                             return false;
                 }
             }

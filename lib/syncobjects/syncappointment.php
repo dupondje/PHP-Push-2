@@ -188,11 +188,13 @@ class SyncAppointment extends SyncObject {
      * This overloads the general check() with special checks to be executed
      * Checks if SYNC_POOMCAL_ORGANIZERNAME and SYNC_POOMCAL_ORGANIZEREMAIL are correctly set
      *
+     * @param boolean   $logAsDebug     (opt) default is false, so messages are logged in WARN log level
+     *
      * @access public
      * @return boolean
      */
-    public function Check() {
-        $ret = parent::Check();
+    public function Check($logAsDebug = false) {
+        $ret = parent::Check($logAsDebug);
         if (!$ret)
             return false;
 

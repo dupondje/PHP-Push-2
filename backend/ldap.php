@@ -114,7 +114,7 @@ class BackendLDAP extends BackendDiff {
 	{
 		ZLog::Write(LOGLEVEL_DEBUG, sprintf("BackendLDAP->GetMessageList('%s','%s')", $folderid, $cutoffdate));
 		
-		$cutoff = date("Ymd\THis\Z", $cutoffdate);
+		$cutoff = date("YmdHis\Z", $cutoffdate);
 		$filter = sprintf('(modifyTimestamp>="%s")', $cutoff);
 		$attributes = array("entryUUID", "modifyTimestamp");
 		$messages = array();

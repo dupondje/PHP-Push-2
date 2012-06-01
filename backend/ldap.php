@@ -115,7 +115,7 @@ class BackendLDAP extends BackendDiff {
 		ZLog::Write(LOGLEVEL_DEBUG, sprintf("BackendLDAP->GetMessageList('%s','%s')", $folderid, $cutoffdate));
 		
 		$cutoff = date("YmdHis\Z", $cutoffdate);
-		$filter = sprintf('(modifyTimestamp>="%s")', $cutoff);
+		$filter = sprintf('(modifyTimestamp>=%s)', $cutoff);
 		$attributes = array("entryUUID", "modifyTimestamp");
 		$messages = array();
 
@@ -124,13 +124,13 @@ class BackendLDAP extends BackendDiff {
 		{
 			$base_dn = str_replace('%u', $this->user, $base_dn);
 			$results = ldap_list($this->ldap_link, $base_dn, $filter, $attributes);
-			ZLog::Write(LOGLEVEL_DEBUG, sprintf("BackendLDAP->GetMessageList(): Got %s contacts.", ldap_count_entries($this->ldap_link, $results)));
+			ZLog::Write(LOGLEVEL_DEBUG, sprintf("BackendLDAP->GetMessageList(): Got %s contacts in base_dn '%s'.", ldap_count_entries($this->ldap_link, $results), $base_dn));
 			$entries = ldap_get_entries($this->ldap_link, $results);
-			foreach ($entries as $entry)
+			for ($i = 0; $i < $entries["count"]; $i++)
 			{
 				$message = array();
-				$message["id"] = $entry["entryuuid"][0];
-				$message["mod"] = $entry["modifytimestamp"][0];
+				$message["id"] = $entries[$i]["entryuuid"][0];
+				$message["mod"] = $entries[$i]["modifytimestamp"][0];
 				$message["flags"] = "1";
 				$messages[] = $message;
 			}
@@ -161,8 +161,8 @@ class BackendLDAP extends BackendDiff {
 	{
 		$contact = new SyncContact();
 		
-		$values = ldap_get_attributes($ldap_link, $entry_id);
-		for ($i = 0; i < $values["count"]; $i++)
+		$values = ldap_get_attributes($this->ldap_link, $entry_id);
+		for ($i = 0; $i < $values["count"]; $i++)
 		{
 			$name = $values[$i];
 			$value = $values[$name][0];

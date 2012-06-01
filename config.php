@@ -161,6 +161,21 @@
     // **********************
     define('VCARDDIR_DIR', '/home/%u/.kde/share/apps/kabc/stdvcf');
 
+    // **********************
+    //  BackendCalDAV settings
+    // **********************
+    define('CALDAV_SERVER', 'http://calendar.domain.com');
+    define('CALDAV_PORT', '80');
+    define('CALDAV_PATH', '/caldav.php/%u/');
+
+    // **********************
+    //  BackendLDAP settings
+    // **********************
+    define('LDAP_SERVER', 'localhost');
+    define('LDAP_PORT', '389');
+    define('LDAP_USER_DN', 'uid=%u,ou=mailaccount,dc=phppush,dc=com');
+    define('LDAP_BASE_DNS', array('ou=addressbook,uid=%u,ou=mailaccount,dc=phppush,dc=com'));
+
 
 /**********************************************************************************
  *  Search provider settings

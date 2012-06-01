@@ -86,6 +86,25 @@ class BackendCombinedConfig {
     public static $BackendVCardDir_config = array('VCARDDIR_DIR' => VCARDDIR_DIR);
 
     // *************************
+    //  BackendCalDAV settings
+    // *************************
+    public static $BackendCalDAV_config = array(
+        'CALDAV_SERVER' => CALDAV_SERVER,
+        'CALDAV_PORT' => CALDAV_PORT,
+        'CALDAV_PATH' => CALDAV_PATH,
+    );
+
+    // *************************
+    //  BackendLDAP settings
+    // *************************
+    public static $BackendLDAP_config = array(
+        'LDAP_SERVER' => LDAP_SERVER,
+        'LDAP_PORT' => LDAP_PORT,
+        'LDAP_USER_DN' => LDAP_USER_DN,
+        'LDAP_BASE_DNS' => LDAP_BASE_DNS,
+    );
+
+    // *************************
     //  BackendCombined settings
     // *************************
     /**
@@ -118,6 +137,14 @@ class BackendCombinedConfig {
                 'v' => array(
                     'name' => 'BackendVCardDir',
                     'config' => self::$BackendVCardDir_config,
+                ),
+                'c' => array(
+                    'name' => 'BackendCalDAV',
+                    'config' => self::$BackendCalDAV_config,
+                ),
+                'l' => array(
+                    'name' => 'BackendLDAP',
+                    'config' => self::$BackendLDAP_config,
                 ),
             ),
             'delimiter' => '/',

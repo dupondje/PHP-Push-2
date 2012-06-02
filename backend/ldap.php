@@ -22,7 +22,7 @@ class BackendLDAP extends BackendDiff {
 	{
 		$this->user = $username;
 		$user_dn = str_replace('%u', $username, LDAP_USER_DN);
-		$this->ldap_link = ldap_connect(LDAP_SERVER, LDAP_PORT);
+		$this->ldap_link = ldap_connect(LDAP_SERVER, LDAP_SERVER_PORT);
 		ldap_set_option($this->ldap_link, LDAP_OPT_PROTOCOL_VERSION, 3);
 		if (ldap_bind($this->ldap_link, $user_dn, $password))
 		{

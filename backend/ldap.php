@@ -477,7 +477,7 @@ class BackendLDAP extends BackendDiff {
 			{
 				$old = str_replace('%u', $this->user, $folder[1]);
 			}
-			if (folder[0] == $newfolderid)
+			if ($folder[0] == $newfolderid)
 			{
 				$new = str_replace('%u', $this->user, $folder[1]);
 			}

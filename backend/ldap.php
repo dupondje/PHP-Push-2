@@ -146,7 +146,7 @@ class BackendLDAP extends BackendDiff {
 	
 	public function GetMessage($folderid, $id, $contentparameters)
 	{
-		ZLog::Write(LOGLEVEL_DEBUG, sprintf("BackendLDAP->GetMessage('%s','%s')", $folderid,  $id));
+		ZLog::Write(LOGLEVEL_DEBUG, sprintf("BackendLDAP->GetMessage('%s','%s')", $folderid, $id));
 		$base_dns = explode("|", LDAP_BASE_DNS);
 		foreach ($base_dns as $base_dn)
 		{
@@ -292,6 +292,7 @@ class BackendLDAP extends BackendDiff {
 	
 	public function ChangeMessage($folderid, $id, $message)
 	{
+		ZLog::Write(LOGLEVEL_DEBUG, sprintf("BackendLDAP->ChangeMessage('%s','%s')", $folderid, $id));
 		$base_dns = explode("|", LDAP_BASE_DNS);
 		foreach ($base_dns as $base_dn)
 		{
@@ -379,7 +380,7 @@ class BackendLDAP extends BackendDiff {
 		}
 		if ($message->companyname)
 		{
-			$ldap["o"] = $message-companyname;
+			$ldap["o"] = $message->companyname;
 		}
 		if ($message->pagernumber)
 		{
@@ -439,13 +440,14 @@ class BackendLDAP extends BackendDiff {
 	
 	public function DeleteMessage($folderid, $id)
 	{
+		ZLog::Write(LOGLEVEL_DEBUG, sprintf("BackendLDAP->DeleteMessage('%s','%s')", $folderid, $id));
 		$base_dns = explode("|", LDAP_BASE_DNS);
 		foreach ($base_dns as $base_dn)
 		{
 			$folder = explode(":", $base_dn);
 			if ($folder[0] == $folderid)
 			{
-				$base_dn = str_replace('%u', $this->user, folder[1]);
+				$base_dn = str_replace('%u', $this->user, $folder[1]);
 				$result_id = ldap_list($this->ldap_link, $base_dn, "(entryUUID=".$id.")", array("entryUUID"));
 				if ($result_id)
 				{
@@ -463,6 +465,33 @@ class BackendLDAP extends BackendDiff {
 	
 	public function MoveMessage($folderid, $id, $newfolderid)
 	{
+		ZLog::Write(LOGLEVEL_DEBUG, sprintf("BackendLDAP->MoveMessage('%s','%s', '%s')", $folderid, $id, $newfolderid));
+		$base_dns = explode("|", LDAP_BASE_DNS);
+		$old = "";
+		$new = "";
+		foreach ($base_dns as $base_dn)
+		{
+			$folder = explode(":", $base_dn);
+			if ($folder[0] == $folderid)
+			{
+				$old = str_replace('%u', $this->user, $folder[1]);
+			}
+			if (folder[0] == $newfolderid)
+			{
+				$new = str_replace('%u', $this->user, $folder[1]);
+			}
+		}
+		$result_id = ldap_list($this->ldap_link, $old, "(entryUUID=".$id.")", array("entryUUID"));
+		if ($result_id)
+		{
+			$entry_id = ldap_first_entry($this->ldap_link, $result_id);
+			if ($entry_id)
+			{
+				$dn = ldap_get_dn($this->ldap_link, $entry_id);
+				$newdn = ldap_explode_dn($dn, 0);
+				return ldap_rename($this->ldap_link, $dn, $newdn[0], true);
+			}
+		}
 		return false;
 	}
 }

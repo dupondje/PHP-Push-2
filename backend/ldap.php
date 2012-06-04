@@ -266,6 +266,7 @@ class BackendLDAP extends BackendDiff {
 	
 	public function StatMessage($folderid, $id)
 	{
+		ZLog::Write(LOGLEVEL_DEBUG, sprintf("BackendLDAP->StatMessage('%s','%s')", $folderid, $id));
 		$base_dns = explode("|", LDAP_BASE_DNS);
 		foreach ($base_dns as $base_dn)
 		{

@@ -68,23 +68,25 @@ class BackendLDAP extends BackendDiff {
 	{
 		ZLog::Write(LOGLEVEL_DEBUG, sprintf("BackendLDAP->GetFolderList(): Getting all folders."));
 		$contacts = array();
-		$folder = $this->StatFolder("contacts");
-		$contacts[] = $folder;
+		$dns = explode("|", LDAP_BASE_DNS);
+		foreach ($dns as $dn)
+		{
+			$name = explode(":", $dn);
+			$folder = $this->StatFolder($name[0]);
+			$contacts[] = $folder;
+		}
 		return $contacts;
 	}
 	
 	public function GetFolder($id)
 	{
 		ZLog::Write(LOGLEVEL_DEBUG, sprintf("BackendLDAP->GetFolder('%s')", $id));
-		if ($id == "contacts")
-		{
-			$folder = new SyncFolder();
-			$folder->serverid = $id;
-			$folder->parentid = "0";
-			$folder->displayname = "Contacts";
-			$folder->type = SYNC_FOLDER_TYPE_CONTACT;
-			return $folder;
-		}
+		$folder = new SyncFolder();
+		$folder->serverid = $id;
+		$folder->parentid = "0";
+		$folder->displayname = $id;
+		$folder->type = SYNC_FOLDER_TYPE_CONTACT;
+		return $folder;
 	}
 	
 	public function StatFolder($id)
@@ -122,17 +124,21 @@ class BackendLDAP extends BackendDiff {
 		$base_dns = explode("|", LDAP_BASE_DNS);
 		foreach ($base_dns as $base_dn)
 		{
-			$base_dn = str_replace('%u', $this->user, $base_dn);
-			$results = ldap_list($this->ldap_link, $base_dn, $filter, $attributes);
-			ZLog::Write(LOGLEVEL_DEBUG, sprintf("BackendLDAP->GetMessageList(): Got %s contacts in base_dn '%s'.", ldap_count_entries($this->ldap_link, $results), $base_dn));
-			$entries = ldap_get_entries($this->ldap_link, $results);
-			for ($i = 0; $i < $entries["count"]; $i++)
+			$folder = explode(":", $base_dn);
+			if ($folder[0] == $folderid)
 			{
-				$message = array();
-				$message["id"] = $entries[$i]["entryuuid"][0];
-				$message["mod"] = $entries[$i]["modifytimestamp"][0];
-				$message["flags"] = "1";
-				$messages[] = $message;
+				$base_dn = str_replace('%u', $this->user, $base_dn);
+				$results = ldap_list($this->ldap_link, $base_dn, $filter, $attributes);
+				ZLog::Write(LOGLEVEL_DEBUG, sprintf("BackendLDAP->GetMessageList(): Got %s contacts in base_dn '%s'.", ldap_count_entries($this->ldap_link, $results), $base_dn));
+				$entries = ldap_get_entries($this->ldap_link, $results);
+				for ($i = 0; $i < $entries["count"]; $i++)
+				{
+					$message = array();
+					$message["id"] = $entries[$i]["entryuuid"][0];
+					$message["mod"] = $entries[$i]["modifytimestamp"][0];
+					$message["flags"] = "1";
+					$messages[] = $message;
+				}
 			}
 		}
 		return $messages;
@@ -144,14 +150,18 @@ class BackendLDAP extends BackendDiff {
 		$base_dns = explode("|", LDAP_BASE_DNS);
 		foreach ($base_dns as $base_dn)
 		{
-			$base_dn = str_replace('%u', $this->user, $base_dn);
-			$result_id = ldap_list($this->ldap_link, $base_dn, "(entryUUID=".$id.")");
-			if ($result_id)
+			$folder = explode(":", $base_dn);
+			if ($folder[0] == $folderid)
 			{
-				$entry_id = ldap_first_entry($this->ldap_link, $result_id);
-				if ($entry_id)
+				$base_dn = str_replace('%u', $this->user, $base_dn);
+				$result_id = ldap_list($this->ldap_link, $base_dn, "(entryUUID=".$id.")");
+				if ($result_id)
 				{
-					return $this->_ParseLDAPMessage($result_id, $entry_id);
+					$entry_id = ldap_first_entry($this->ldap_link, $result_id);
+					if ($entry_id)
+					{
+						return $this->_ParseLDAPMessage($result_id, $entry_id);
+					}
 				}
 			}
 		}
@@ -276,10 +286,145 @@ class BackendLDAP extends BackendDiff {
 		}
 	}
 	
-	//TODO: Implement
 	public function ChangeMessage($folderid, $id, $message)
 	{
+		$base_dns = explode("|", LDAP_BASE_DNS);
+		foreach ($base_dns as $base_dn)
+		{
+			$folder = explode(":", $base_dn);
+			if ($folder[0] == $folderid)
+			{
+				$ldap_attributes = $this->_GenerateLDAPArray($message);
+				$result_id = ldap_list($this->ldap_link, $base_dn, "(entryUUID=".$id.")", array("modifyTimestamp"));
+				if ($result_id)
+				{
+					$entry_id = ldap_first_entry($this->ldap_link, $result_id);
+					if ($entry_id)
+					{
+						$dn = ldap_get_dn($this->ldap_link, $entry_id);
+						return ldap_modify($this->ldap_link, $dn, $ldap_attributes);
+					}
+					else
+					{
+						$uid = time() . mt_rand(100000, 999999);
+						$dn = "uid=" . $uid . "," . $base_dn;
+						$add = ldap_add($this->ldap_link, $dn, $ldap_attributes);
+						if (!$add)
+						{
+							return false;
+						}
+						$result = ldap_read($this->ldap_link, $dn, "objectClass=*", array("entryUUID"));
+						$entry = ldap_first_entry($this->ldap_link, $result);
+						$values = ldap_get_values($this->ldap_link, $entry, "entryUUID");
+						$entryuuid = $values[0];
+						return $this->StatMessage($folderid, $entryuuid);
+					}
+				}
+			}
+		}
 		return false;
+	}
+
+	private function _GenerateLDAPArray($message)
+	{
+		$ldap = array();
+		if ($message->fileas)
+		{
+			$ldap["cn"] = $message->fileas;
+		}
+		if ($message->lastname)
+		{
+			$ldap["sn"] = $message->lastname;
+		}
+		if ($message->department)
+		{
+			$ldap["departmentNumber"] = $message->department;
+		}
+		if ($message->firstname)
+		{
+			$ldap["givenName"] = $message->firstname;
+		}
+		if ($message->homephonenumber)
+		{
+			$ldap["homePhone"] = $message->homephonenumber;
+		}
+		if ($message->picture)
+		{
+			$ldap["jpegPhoto"] = base64_decode($message->picture);
+		}
+		if ($message->webpage)
+		{
+			$ldap["labeledURI"] = $message->webpage;
+		}
+		if ($message->email1address)
+		{
+			$ldap["mail"][] = $message->email1address;
+		}
+		if ($message->email2address)
+		{
+			$ldap["mail"][] = $message->email2address;
+		}
+		if ($message->email3address)
+		{
+			$ldap["mail"][] = $message->email3address;
+		}
+		if ($message->mobilephonenumber)
+		{
+			$ldap["mobile"] = $message->mobilephonenumber;
+		}
+		if ($message->companyname)
+		{
+			$ldap["o"] = $message-companyname;
+		}
+		if ($message->pagernumber)
+		{
+			$ldap["pager"] = $message->pagernumber;
+		}
+		if ($message->assistantname)
+		{
+			$ldap["secretary"] = $message->assistantname;
+		}
+		if ($message->businesscity)
+		{
+			$ldap["l"] = $message->businesscity;
+		}
+		if ($message->department)
+		{
+			$ldap["ou"] = $message->department;
+		}
+		if ($message->officelocation)
+		{
+			$ldap["physicalDeliveryOfficeName"] = $message->officelocation;
+		}
+		if ($message->businesspostalcode)
+		{
+			$ldap["postalCode"] = $message->businesspostalcode;
+		}
+		if ($message->businessstate)
+		{
+			$ldap["st"] = $message->businessstate;
+		}
+		if ($message->businessstreet)
+		{
+			$ldap["street"] = $message->businessstreet;
+		}
+		if ($message->businessphonenumber)
+		{
+			$ldap["telephoneNumber"][] = $message->businessphonenumber;
+		}
+		if ($message->business2phonenumber)
+		{
+			$ldap["telephoneNumber"][] = $message->business2phonenumber;
+		}
+		if ($message->title)
+		{
+			$ldap["title"] = $message->title;
+		}
+		if ($message->body)
+		{
+			$ldap["description"] = $message->body;
+		}
+		return $ldap;
 	}
 	
 	public function SetReadFlag($folderid, $id, $flags)
@@ -292,15 +437,19 @@ class BackendLDAP extends BackendDiff {
 		$base_dns = explode("|", LDAP_BASE_DNS);
 		foreach ($base_dns as $base_dn)
 		{
-			$base_dn = str_replace('%u', $this->user, $base_dn);
-			$result_id = ldap_list($this->ldap_link, $base_dn, "(entryUUID=".$id.")", array("entryUUID"));
-			if ($result_id)
+			$folder = explode(":", $base_dn);
+			if ($folder[0] == $folderid)
 			{
-				$entry_id = ldap_first_entry($this->ldap_link, $result_id);
-				if ($entry_id)
+				$base_dn = str_replace('%u', $this->user, $base_dn);
+				$result_id = ldap_list($this->ldap_link, $base_dn, "(entryUUID=".$id.")", array("entryUUID"));
+				if ($result_id)
 				{
-					$dn = ldap_get_dn($this->ldap_link, $entry_id);
-					return ldap_delete($this->ldap_link, $dn);
+					$entry_id = ldap_first_entry($this->ldap_link, $result_id);
+					if ($entry_id)
+					{
+						$dn = ldap_get_dn($this->ldap_link, $entry_id);
+						return ldap_delete($this->ldap_link, $dn);
+					}
 				}
 			}
 		}

@@ -310,7 +310,12 @@ class BackendLDAP extends BackendDiff {
 					if ($entry_id)
 					{
 						$dn = ldap_get_dn($this->ldap_link, $entry_id);
-						return ldap_modify($this->ldap_link, $dn, $ldap_attributes);
+						$mod = ldap_modify($this->ldap_link, $dn, $ldap_attributes);
+						if (!$mod)
+						{
+							return false;
+						}
+						return $this->StatMessage($folderid, $id);
 					}
 					else
 					{
@@ -336,6 +341,9 @@ class BackendLDAP extends BackendDiff {
 	private function _GenerateLDAPArray($message)
 	{
 		$ldap = array();
+		//Set the Object Class
+		$ldap["objectClass"] = "inetOrgPerson";
+		//Parse Data
 		if ($message->fileas)
 		{
 			$ldap["cn"] = $message->fileas;

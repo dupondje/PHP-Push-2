@@ -99,7 +99,7 @@ class BackendCombinedConfig {
     // *************************
     public static $BackendLDAP_config = array(
         'LDAP_SERVER' => LDAP_SERVER,
-        'LDAP_PORT' => LDAP_PORT,
+        'LDAP_SERVER_PORT' => LDAP_SERVER_PORT,
         'LDAP_USER_DN' => LDAP_USER_DN,
         'LDAP_BASE_DNS' => LDAP_BASE_DNS,
     );

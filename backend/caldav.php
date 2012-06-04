@@ -838,8 +838,8 @@ class BackendCalDAV extends BackendDiff {
 		{
 			foreach ($data->attendees as $att)
 			{
-				$att_str = sprintf("CN=%s:MAILTO:%s", $att->name, $att->email);
-				$vevent->AddProperty("ATTENDEE", $att_str);
+				$att_str = sprintf("MAILTO:%s", $att->email);
+				$vevent->AddProperty("ATTENDEE", $att_str, array("CN" => $att->name));
 			}
 		}
 		if (isset($data->body))

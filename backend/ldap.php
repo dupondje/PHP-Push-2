@@ -240,6 +240,7 @@ class BackendLDAP extends BackendDiff {
 					break;
 				case "st":
 					$contact->businessstate = $value;	
+					break;
 				case "street":
 					$contact->businessstreet = $value;
 					break;

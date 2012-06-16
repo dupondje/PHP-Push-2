@@ -806,7 +806,7 @@ class BackendCalDAV extends BackendDiff {
 		{
 			$valarm = new iCalComponent();
 			$valarm->SetType("VALARM");
-			$trigger = "-PT0H" . $data->reminder . "M0S";
+			$trigger = "-PT" . $data->reminder . "M";
 			$valarm->AddProperty("TRIGGER", $trigger);
 			$vevent->AddComponent($valarm);
 		}

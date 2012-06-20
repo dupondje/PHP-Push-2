@@ -21,6 +21,7 @@ class BackendCalDAV extends BackendDiff {
 	private $_caldav;
 	private $_caldav_path;
 	private $_collection = array();
+	private $_username;
 
 	/**
 	 * Login to the CalDAV backend
@@ -28,6 +29,7 @@ class BackendCalDAV extends BackendDiff {
 	 */
 	public function Logon($username, $domain, $password)
 	{
+		$this->_username = $username;
 		$this->_caldav_path = str_replace('%u', $username, CALDAV_PATH);
 		$this->_caldav = new CalDAVClient(CALDAV_SERVER . $this->_caldav_path, $username, $password);
 		$options = $this->_caldav->DoOptionsRequest();
@@ -760,6 +762,12 @@ class BackendCalDAV extends BackendDiff {
 			{
 				$vevent->AddProperty("ORGANIZER", sprintf("CN=%s", $data->organizername));
 			}
+		}
+		else
+		{
+			//This should not happen, but some devices do not send organizer details.
+			//We set the CN to the current username as fallback
+			$vevent->AddProperty("ORGANIZER", sprintf("CN=%s", $this->_username));
 		}
 		if (isset($data->location))
 		{

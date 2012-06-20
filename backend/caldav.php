@@ -1217,8 +1217,8 @@ class BackendCalDAV extends BackendDiff {
 		}
 		if (!$date)
 		{
-			//20110930
-			$date = date_create_from_format('Ymd', $value, $tz);
+			//20110930 (Append T000000Z to the date, so it starts at midnight)
+			$date = date_create_from_format('Ymd\THis\Z', $value . "T000000Z", $tz);
 		}
 		return date_timestamp_get($date);
 	}

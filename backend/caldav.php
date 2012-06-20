@@ -752,22 +752,16 @@ class BackendCalDAV extends BackendDiff {
 		{
 			$vevent->AddProperty("SUMMARY", $data->subject);
 		}
-		if (isset($data->organizername))
+		if (isset($data->organizeremail))
 		{
-			if (isset($data->organizeremail))
+			if (isset($data->organizername))
 			{
-				$vevent->AddProperty("ORGANIZER", sprintf("CN=%s:MAILTO:%s", $data->organizername, $data->organizeremail));
+				$vevent->AddProperty("ORGANIZER", sprintf("MAILTO:%s", $data->organizeremail), array("CN" => $data->organizername));
 			}
 			else
 			{
-				$vevent->AddProperty("ORGANIZER", sprintf("CN=%s", $data->organizername));
+				$vevent->AddProperty("ORGANIZER", sprintf("MAILTO:%s", $data->organizeremail));
 			}
-		}
-		else
-		{
-			//This should not happen, but some devices do not send organizer details.
-			//We set the CN to the current username as fallback
-			$vevent->AddProperty("ORGANIZER", sprintf("CN=%s", $this->_username));
 		}
 		if (isset($data->location))
 		{
@@ -845,6 +839,13 @@ class BackendCalDAV extends BackendDiff {
 		}
 		if (isset($data->attendees) && is_array($data->attendees))
 		{
+			//If there are attendees, we need to set ORGANIZER
+			//Some phones doesn't send the organizeremail, so we gotto get it somewhere else.
+			//Lets use the login here ($username)
+			if (!isset($data->organizeremail))
+			{
+				$vevent->AddProperty("ORGANIZER", sprintf("MAILTO:%s", $this->_username));
+			}
 			foreach ($data->attendees as $att)
 			{
 				$att_str = sprintf("MAILTO:%s", $att->email);

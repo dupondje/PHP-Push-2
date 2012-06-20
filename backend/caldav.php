@@ -814,6 +814,7 @@ class BackendCalDAV extends BackendDiff {
 		{
 			$valarm = new iCalComponent();
 			$valarm->SetType("VALARM");
+			$valarm->AddProperty("ACTION", "DISPLAY");
 			$trigger = "-PT" . $data->reminder . "M";
 			$valarm->AddProperty("TRIGGER", $trigger);
 			$vevent->AddComponent($valarm);
@@ -1145,6 +1146,7 @@ class BackendCalDAV extends BackendDiff {
 		{
 			$valarm = new iCalComponent();
 			$valarm->SetType("VALARM");
+			$valarm->AddProperty("ACTION", "DISPLAY");
 			$valarm->AddProperty("TRIGGER;VALUE=DATE-TIME", gmdate("Ymd\THis\Z", $data->remindertime));
 			$vtodo->AddComponent($valarm);
 		}

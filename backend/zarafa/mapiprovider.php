@@ -228,24 +228,18 @@ class MAPIProvider {
             $message->organizername = w2u($messageprops[$appointmentprops["representingname"]]);
         }
 
-        // Only set timezone if the timezone tag is set which is usually for recurring appointments only.
-        // For non-recurring appointments it doesn't matter anyway
-        if(isset($messageprops[$appointmentprops["timezonetag"]])) {
-            $message->timezone = base64_encode($this->getSyncBlobFromTZ($this->getTZFromMAPIBlob($messageprops[$appointmentprops["timezonetag"]])));
+        if(isset($messageprops[$appointmentprops["timezonetag"]]))
+            $tz = $this->getTZFromMAPIBlob($messageprops[$appointmentprops["timezonetag"]]);
+        else {
+            // set server default timezone (correct timezone should be configured!)
+            $tz = TimezoneUtil::GetFullTZ();
         }
+        $message->timezone = base64_encode($this->getSyncBlobFromTZ($tz));
+
         if(isset($messageprops[$appointmentprops["isrecurring"]]) && $messageprops[$appointmentprops["isrecurring"]]) {
-            if (isset($messageprops[$appointmentprops["timezonetag"]])) {
-                // Process recurrence
-                $message->recurrence = new SyncRecurrence();
-                $tz = $this->getTZFromMAPIBlob($messageprops[$appointmentprops["timezonetag"]]);
-                $this->getRecurrence($mapimessage, $messageprops, $message, $message->recurrence, $tz);
-            }
-            else {
-                $message->id = bin2hex($messageprops[$appointmentprops["sourcekey"]]);
-                $mbe = new SyncObjectBrokenException("Recurring appointment does not have a timezone");
-                $mbe->SetSyncObject($message);
-                throw $mbe;
-            }
+            // Process recurrence
+            $message->recurrence = new SyncRecurrence();
+            $this->getRecurrence($mapimessage, $messageprops, $message, $message->recurrence, $tz);
         }
 
         // Do attendees
@@ -677,18 +671,20 @@ class MAPIProvider {
         $message->cc = array();
 
         $reciptable = mapi_message_getrecipienttable($mapimessage);
-        $rows = mapi_table_queryallrows($reciptable, array(PR_RECIPIENT_TYPE, PR_DISPLAY_NAME, PR_ADDRTYPE, PR_EMAIL_ADDRESS, PR_SMTP_ADDRESS));
+        $rows = mapi_table_queryallrows($reciptable, array(PR_RECIPIENT_TYPE, PR_DISPLAY_NAME, PR_ADDRTYPE, PR_EMAIL_ADDRESS, PR_SMTP_ADDRESS, PR_ENTRYID));
 
-        foreach($rows as $row) {
+        foreach ($rows as $row) {
             $address = "";
             $fulladdr = "";
 
             $addrtype = isset($row[PR_ADDRTYPE]) ? $row[PR_ADDRTYPE] : "";
 
-            if(isset($row[PR_SMTP_ADDRESS]))
+            if (isset($row[PR_SMTP_ADDRESS]))
                 $address = $row[PR_SMTP_ADDRESS];
-            else if($addrtype == "SMTP" && isset($row[PR_EMAIL_ADDRESS]))
+            elseif ($addrtype == "SMTP" && isset($row[PR_EMAIL_ADDRESS]))
                 $address = $row[PR_EMAIL_ADDRESS];
+            elseif ($addrtype == "ZARAFA" && isset($row[PR_ENTRYID]))
+                $address = $this->getSMTPAddressFromEntryID($row[PR_ENTRYID]);
 
             $name = isset($row[PR_DISPLAY_NAME]) ? $row[PR_DISPLAY_NAME] : "";
 
@@ -709,6 +705,9 @@ class MAPIProvider {
                 array_push($message->cc, $fulladdr);
             }
         }
+
+        if (is_array($message->to) && !empty($message->to)) $message->to = implode(", ", $message->to);
+        if (is_array($message->cc) && !empty($message->cc)) $message->cc = implode(", ", $message->cc);
 
         // without importance some mobiles assume "0" (low) - Mantis #439
         if (!isset($message->importance))
@@ -755,7 +754,7 @@ class MAPIProvider {
     public function GetFolder($mapifolder) {
         $folder = new SyncFolder();
 
-        $folderprops = mapi_getprops($mapifolder, array(PR_DISPLAY_NAME, PR_PARENT_ENTRYID, PR_SOURCE_KEY, PR_PARENT_SOURCE_KEY, PR_ENTRYID, PR_CONTAINER_CLASS));
+        $folderprops = mapi_getprops($mapifolder, array(PR_DISPLAY_NAME, PR_PARENT_ENTRYID, PR_SOURCE_KEY, PR_PARENT_SOURCE_KEY, PR_ENTRYID, PR_CONTAINER_CLASS, PR_ATTR_HIDDEN));
         $storeprops = mapi_getprops($this->store, array(PR_IPM_SUBTREE_ENTRYID));
 
         if(!isset($folderprops[PR_DISPLAY_NAME]) ||
@@ -764,7 +763,13 @@ class MAPIProvider {
            !isset($folderprops[PR_ENTRYID]) ||
            !isset($folderprops[PR_PARENT_SOURCE_KEY]) ||
            !isset($storeprops[PR_IPM_SUBTREE_ENTRYID])) {
-            ZLog::Write(LOGLEVEL_ERROR, "Missing properties on folder");
+            ZLog::Write(LOGLEVEL_ERROR, "MAPIProvider->GetFolder(): invalid folder. Missing properties");
+            return false;
+        }
+
+        // ignore hidden folders
+        if (isset($folderprops[PR_ATTR_HIDDEN]) && $folderprops[PR_ATTR_HIDDEN] != false) {
+            ZLog::Write(LOGLEVEL_DEBUG, sprintf("MAPIProvider->GetFolder(): invalid folder '%s' as it is a hidden folder (PR_ATTR_HIDDEN)", $folderprops[PR_DISPLAY_NAME]));
             return false;
         }
 
@@ -1021,7 +1026,6 @@ class MAPIProvider {
         if(isset($appointment->recurrence)) {
             // Set PR_ICON_INDEX to 1025 to show correct icon in category view
             $props[$appointmentprops["icon"]] = 1025;
-            $props[$appointmentprops["recurrencetype"]] = $appointment->recurrence->type;
 
             //if there aren't any exceptions, use the 'old style' set recurrence
             $noexceptions = true;
@@ -1029,6 +1033,9 @@ class MAPIProvider {
             $recurrence = new Recurrence($this->store, $mapimessage);
             $recur = array();
             $this->setRecurrence($appointment, $recur);
+
+            // set the recurrence type to that of the MAPI
+            $props[$appointmentprops["recurrencetype"]] = $recur["recurrencetype"];
 
             $starttime = $this->gmtime($localstart);
             $endtime = $this->gmtime($localend);
@@ -1596,8 +1603,30 @@ class MAPIProvider {
      * @return array
      */
     private function getGMTTZ() {
-        $tz = array("bias" => 0, "stdbias" => 0, "dstbias" => 0, "dstendyear" => 0, "dstendmonth" =>0, "dstendday" =>0, "dstendweek" => 0, "dstendhour" => 0, "dstendminute" => 0, "dstendsecond" => 0, "dstendmillis" => 0,
-                                      "dststartyear" => 0, "dststartmonth" =>0, "dststartday" =>0, "dststartweek" => 0, "dststarthour" => 0, "dststartminute" => 0, "dststartsecond" => 0, "dststartmillis" => 0);
+        $tz = array(
+            "bias" => 0,
+            "tzname" => "",
+            "dstendyear" => 0,
+            "dstendmonth" => 10,
+            "dstendday" => 0,
+            "dstendweek" => 5,
+            "dstendhour" => 2,
+            "dstendminute" => 0,
+            "dstendsecond" => 0,
+            "dstendmillis" => 0,
+            "stdbias" => 0,
+            "tznamedst" => "",
+            "dststartyear" => 0,
+            "dststartmonth" => 3,
+            "dststartday" => 0,
+            "dststartweek" => 5,
+            "dststarthour" => 1,
+            "dststartminute" => 0,
+            "dststartsecond" => 0,
+            "dststartmillis" => 0,
+            "dstbias" => -60
+    );
+
         return $tz;
     }
 
@@ -1625,8 +1654,8 @@ class MAPIProvider {
      * @return array
      */
     private function getTZFromSyncBlob($data) {
-        $tz = unpack(   "lbias/a64name/vdstendyear/vdstendmonth/vdstendday/vdstendweek/vdstendhour/vdstendminute/vdstendsecond/vdstendmillis/" .
-                        "lstdbias/a64name/vdststartyear/vdststartmonth/vdststartday/vdststartweek/vdststarthour/vdststartminute/vdststartsecond/vdststartmillis/" .
+        $tz = unpack(   "lbias/a64tzname/vdstendyear/vdstendmonth/vdstendday/vdstendweek/vdstendhour/vdstendminute/vdstendsecond/vdstendmillis/" .
+                        "lstdbias/a64tznamedst/vdststartyear/vdststartmonth/vdststartday/vdststartweek/vdststarthour/vdststartminute/vdststartsecond/vdststartmillis/" .
                         "ldstbias", $data);
 
         // Make the structure compatible with class.recurrence.php
@@ -1645,9 +1674,13 @@ class MAPIProvider {
      * @return string
      */
     private function getSyncBlobFromTZ($tz) {
+        // set the correct TZ name (done using the Bias)
+        if (!isset($tz["tzname"]) || !$tz["tzname"] || !isset($tz["tznamedst"]) || !$tz["tznamedst"])
+            $tz = TimezoneUtil::FillTZNames($tz);
+
         $packed = pack("la64vvvvvvvv" . "la64vvvvvvvv" . "l",
-                $tz["bias"], "", 0, $tz["dstendmonth"], $tz["dstendday"], $tz["dstendweek"], $tz["dstendhour"], $tz["dstendminute"], $tz["dstendsecond"], $tz["dstendmillis"],
-                $tz["stdbias"], "", 0, $tz["dststartmonth"], $tz["dststartday"], $tz["dststartweek"], $tz["dststarthour"], $tz["dststartminute"], $tz["dststartsecond"], $tz["dststartmillis"],
+                $tz["bias"], $tz["tzname"], 0, $tz["dstendmonth"], $tz["dstendday"], $tz["dstendweek"], $tz["dstendhour"], $tz["dstendminute"], $tz["dstendsecond"], $tz["dstendmillis"],
+                $tz["stdbias"], $tz["tznamedst"], 0, $tz["dststartmonth"], $tz["dststartday"], $tz["dststartweek"], $tz["dststarthour"], $tz["dststartminute"], $tz["dststartsecond"], $tz["dststartmillis"],
                 $tz["dstbias"]);
 
         return $packed;
@@ -1949,6 +1982,8 @@ class MAPIProvider {
 
         //set the default value of numoccur
         $recur["numoccur"] = 0;
+        //a place holder for recurrencetype property
+        $recur["recurrencetype"] = 0;
 
         switch($message->recurrence->type) {
             case 0:
@@ -1959,36 +1994,43 @@ class MAPIProvider {
                     $recur["subtype"] = 0;
 
                 $recur["everyn"] = $message->recurrence->interval * (60 * 24);
+                $recur["recurrencetype"] = 1;
                 break;
             case 1:
                 $recur["type"] = 11;
                 $recur["subtype"] = 1;
                 $recur["everyn"] = $message->recurrence->interval;
+                $recur["recurrencetype"] = 2;
                 break;
             case 2:
                 $recur["type"] = 12;
                 $recur["subtype"] = 2;
                 $recur["everyn"] = $message->recurrence->interval;
+                $recur["recurrencetype"] = 3;
                 break;
             case 3:
                 $recur["type"] = 12;
                 $recur["subtype"] = 3;
                 $recur["everyn"] = $message->recurrence->interval;
+                $recur["recurrencetype"] = 3;
                 break;
             case 4:
                 $recur["type"] = 13;
                 $recur["subtype"] = 1;
                 $recur["everyn"] = $message->recurrence->interval * 12;
+                $recur["recurrencetype"] = 4;
                 break;
             case 5:
                 $recur["type"] = 13;
                 $recur["subtype"] = 2;
                 $recur["everyn"] = $message->recurrence->interval * 12;
+                $recur["recurrencetype"] = 4;
                 break;
             case 6:
                 $recur["type"] = 13;
                 $recur["subtype"] = 3;
                 $recur["everyn"] = $message->recurrence->interval * 12;
+                $recur["recurrencetype"] = 4;
                 break;
         }
 

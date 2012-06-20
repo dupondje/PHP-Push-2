@@ -253,6 +253,12 @@ class ZPush {
         if (!is_array($specialLogUsers))
             throw new FatalMisconfigurationException("The WBXML log users is not an array.");
 
+        if (!defined('SINK_FORCERECHECK')) {
+            define('SINK_FORCERECHECK', 300);
+        }
+        else if (SINK_FORCERECHECK !== false && (!is_int(SINK_FORCERECHECK) || SINK_FORCERECHECK < 1))
+            throw new FatalMisconfigurationException("The SINK_FORCERECHECK value must be 'false' or a number higher than 0.");
+
         // the check on additional folders will not throw hard errors, as this is probably changed on live systems
         if (isset($additionalFolders) && !is_array($additionalFolders))
             ZLog::Write(LOGLEVEL_ERROR, "ZPush::CheckConfig() : The additional folders synchronization not available as array.");

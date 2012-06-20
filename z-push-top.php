@@ -180,7 +180,7 @@ class ZPushTop {
             // check if screen size changed
             $s = $this->scrGetSize();
             if ($this->scrSize['width'] != $s['width']) {
-                if ($s['width'] > 150)
+                if ($s['width'] > 180)
                     $this->wide = true;
                 else
                     $this->wide = false;
@@ -508,7 +508,7 @@ class ZPushTop {
         $h[] = "  ".$this->scrAsBold("Action")."\t\t".$this->scrAsBold("Comment");
         $h[] = "  ".$this->scrAsBold("h")." or ".$this->scrAsBold("help")."\t\tDisplays this information.";
         $h[] = "  ".$this->scrAsBold("q").", ".$this->scrAsBold("quit")." or ".$this->scrAsBold(":q")."\t\tExits Z-Push-Top.";
-        $h[] = "  ".$this->scrAsBold("w")." or ".$this->scrAsBold("wide")."\t\tTries not to truncate data. Automatically done if more than 150 columns available.";
+        $h[] = "  ".$this->scrAsBold("w")." or ".$this->scrAsBold("wide")."\t\tTries not to truncate data. Automatically done if more than 180 columns available.";
         $h[] = "  ".$this->scrAsBold("f:VAL")." or ".$this->scrAsBold("filter:VAL")."\tOnly display connections which contain VAL. This value is case-insensitive.";
         $h[] = "  ".$this->scrAsBold("f:")." or ".$this->scrAsBold("filter:")."\t\tWithout a search word: resets the filter.";
         $h[] = "  ".$this->scrAsBold("l:STR")." or ".$this->scrAsBold("log:STR")."\tIssues 'less +G' on the logfile, after grepping on the optional STR.";

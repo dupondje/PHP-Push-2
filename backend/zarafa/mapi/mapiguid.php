@@ -1,6 +1,6 @@
 <?php
 /*
- * Copyright 2005 - 2009  Zarafa B.V.
+ * Copyright 2005 - 2012  Zarafa B.V.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License, version 3,
@@ -48,12 +48,12 @@
  *
  */
 
-define('IID_IStream', 							makeguid("{0000000c-0000-0000-c000-000000000046}"));
-define('IID_IMAPITable',						makeguid("{00020301-0000-0000-c000-000000000046}"));
-define('IID_IMessage', 							makeguid("{00020307-0000-0000-c000-000000000046}"));
-define('IID_IExchangeExportChanges', 			makeguid("{a3ea9cc0-d1b2-11cd-80fc-00aa004bba0b}"));
-define('IID_IExchangeImportContentsChanges', 	makeguid("{f75abfa0-d0e0-11cd-80fc-00aa004bba0b}"));
-define('IID_IExchangeImportHierarchyChanges', 	makeguid("{85a66cf0-d0e0-11cd-80fc-00aa004bba0b}"));
+define('IID_IStream',                           makeguid("{0000000c-0000-0000-c000-000000000046}"));
+define('IID_IMAPITable',                        makeguid("{00020301-0000-0000-c000-000000000046}"));
+define('IID_IMessage',                          makeguid("{00020307-0000-0000-c000-000000000046}"));
+define('IID_IExchangeExportChanges',            makeguid("{a3ea9cc0-d1b2-11cd-80fc-00aa004bba0b}"));
+define('IID_IExchangeImportContentsChanges',    makeguid("{f75abfa0-d0e0-11cd-80fc-00aa004bba0b}"));
+define('IID_IExchangeImportHierarchyChanges',   makeguid("{85a66cf0-d0e0-11cd-80fc-00aa004bba0b}"));
 
 define('PSETID_Appointment',                    makeguid("{00062002-0000-0000-C000-000000000046}"));
 define('PSETID_Task',                           makeguid("{00062003-0000-0000-C000-000000000046}"));

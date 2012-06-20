@@ -78,6 +78,7 @@ class ExportChangesICS implements IExportChanges{
         $this->session = $session;
         $this->folderid = $folderid;
         $this->store = $store;
+        $this->restriction = false;
 
         try {
             if($folderid) {
@@ -94,7 +95,10 @@ class ExportChangesICS implements IExportChanges{
 
             // Get the actual ICS exporter
             if($folderid) {
-                $this->exporter = mapi_openproperty($folder, PR_CONTENTS_SYNCHRONIZER, IID_IExchangeExportChanges, 0 , 0);
+                if ($folder)
+                    $this->exporter = mapi_openproperty($folder, PR_CONTENTS_SYNCHRONIZER, IID_IExchangeExportChanges, 0 , 0);
+                else
+                    $this->exporter = false;
             }
             else {
                 $this->exporter = mapi_openproperty($folder, PR_HIERARCHY_SYNCHRONIZER, IID_IExchangeExportChanges, 0 , 0);

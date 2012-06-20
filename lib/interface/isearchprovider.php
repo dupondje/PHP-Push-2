@@ -77,6 +77,25 @@ interface ISearchProvider {
     public function GetGALSearchResults($searchquery, $searchrange);
 
     /**
+    * Searches for the emails on the server
+    *
+    * @param ContentParameter $cpo
+    *
+    * @return array
+    */
+    public function GetMailboxSearchResults($cpo);
+
+    /**
+    * Terminates a search for a given PID
+    *
+    * @param int $pid
+    *
+    * @return boolean
+    */
+    public function TerminateSearch($pid);
+
+
+    /**
      * Disconnects from the current search provider
      *
      * @access public

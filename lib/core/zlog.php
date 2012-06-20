@@ -128,7 +128,7 @@ class ZLog {
      * @return string
      */
     static public function GetWBXMLDebugInfo() {
-        return self::$wbxmlDebug;
+        return trim(self::$wbxmlDebug);
     }
 
     /**
@@ -182,7 +182,7 @@ class ZLog {
         if (!isset(self::$devid))
             self::$devid = '';
 
-        return @strftime("%d/%m/%Y %H:%M:%S") ." ". self::$pidstr . self::$user . self::getLogLevelString($loglevel, (LOGLEVEL > LOGLEVEL_INFO)) ." ". self::$devid;
+        return Utils::GetFormattedTime() ." ". self::$pidstr . self::$user . self::getLogLevelString($loglevel, (LOGLEVEL > LOGLEVEL_INFO)) ." ". self::$devid;
     }
 
     /**

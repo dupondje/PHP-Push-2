@@ -1,6 +1,6 @@
 <?php
 /*
- * Copyright 2005 - 2009  Zarafa B.V.
+ * Copyright 2005 - 2012  Zarafa B.V.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License, version 3,
@@ -69,6 +69,26 @@
          *   always in LOCAL time.
          */
 
+        // All properties for a recipient that are interesting
+        var $recipprops = Array(
+            PR_ENTRYID,
+            PR_SEARCH_KEY,
+            PR_DISPLAY_NAME,
+            PR_EMAIL_ADDRESS,
+            PR_RECIPIENT_ENTRYID,
+            PR_RECIPIENT_TYPE,
+            PR_SEND_INTERNET_ENCODING,
+            PR_SEND_RICH_INFO,
+            PR_RECIPIENT_DISPLAY_NAME,
+            PR_ADDRTYPE,
+            PR_DISPLAY_TYPE,
+            PR_DISPLAY_TYPE_EX,
+            PR_RECIPIENT_TRACKSTATUS,
+            PR_RECIPIENT_TRACKSTATUS_TIME,
+            PR_RECIPIENT_FLAGS,
+            PR_ROWID
+        );
+
         /**
          * Constructor
          * @param resource $store MAPI Message Store Object
@@ -97,6 +117,7 @@
             $properties["meeting"] = "PT_LONG:PSETID_Appointment:0x8217";
             $properties["startdate_recurring"] = "PT_SYSTIME:PSETID_Appointment:0x8235";
             $properties["enddate_recurring"] = "PT_SYSTIME:PSETID_Appointment:0x8236";
+            $properties["recurring_pattern"] = "PT_STRING8:PSETID_Appointment:0x8232";
             $properties["location"] = "PT_STRING8:PSETID_Appointment:0x8208";
             $properties["duration"] = "PT_LONG:PSETID_Appointment:0x8213";
             $properties["responsestatus"] = "PT_LONG:PSETID_Appointment:0x8218";
@@ -138,9 +159,9 @@
             if($this->isException($baseday)) {
                 $this->deleteException($baseday); // note that deleting an exception is different from creating a deleted exception (deleting an occurrence).
             }
-            if(!$delete) {
 
-                if(!$this->isValidExceptionDate($base_date, $this->fromGMT($this->tz, $exception_props[$this->proptags["startdate"]]))) {
+            if(!$delete) {
+                if(isset($exception_props[$this->proptags["startdate"]]) && !$this->isValidExceptionDate($base_date, $this->fromGMT($this->tz, $exception_props[$this->proptags["startdate"]]))) {
                     return false;
                 }
                 // Properties in the attachment are the properties of the base object, plus $exception_props plus the base date
@@ -157,17 +178,31 @@
                 // Basedate in the exception attachment is the GMT time at which the original occurrence would have been
                 $props[$this->proptags["basedate"]] = $this->toGMT($this->tz, $basetime);
 
+                if (!isset($exception_props[$this->proptags["startdate"]])) {
+                    $props[$this->proptags["startdate"]] = $this->getOccurrenceStart($base_date);
+                }
+
+                if (!isset($exception_props[$this->proptags["duedate"]])) {
+                    $props[$this->proptags["duedate"]] = $this->getOccurrenceEnd($base_date);
+                }
+
+                // synchronize commonstart/commonend with startdate/duedate
+                if(isset($props[$this->proptags["startdate"]])) {
+                    $props[$this->proptags["commonstart"]] = $props[$this->proptags["startdate"]];
+                }
+
+                if(isset($props[$this->proptags["duedate"]])) {
+                    $props[$this->proptags["commonend"]] = $props[$this->proptags["duedate"]];
+                }
+
                 // Save the data into an attachment
                 $this->createExceptionAttachment($props, $exception_recips, $copy_attach_from);
 
                 $changed_item = array();
 
-                $startdate = $this->gmtime($exception_props[$this->proptags["startdate"]]);
-                $enddate = $this->gmtime($exception_props[$this->proptags["duedate"]]);
-
                 $changed_item["basedate"] = $baseday;
-                $changed_item["start"] = $this->fromGMT($this->tz, $exception_props[$this->proptags["startdate"]]);
-                $changed_item["end"] = $this->fromGMT($this->tz, $exception_props[$this->proptags["duedate"]]);
+                $changed_item["start"] = $this->fromGMT($this->tz, $props[$this->proptags["startdate"]]);
+                $changed_item["end"] = $this->fromGMT($this->tz, $props[$this->proptags["duedate"]]);
 
                 if(array_key_exists($this->proptags["subject"], $exception_props)) {
                     $changed_item["subject"] = $exception_props[$this->proptags["subject"]];
@@ -219,7 +254,7 @@
          */
         function modifyException($exception_props, $base_date, $exception_recips = array(), $copy_attach_from = false)
         {
-            if(!$this->isValidExceptionDate($base_date, $this->fromGMT($this->tz, $exception_props[$this->proptags["startdate"]]))) {
+            if(isset($exception_props[$this->proptags["startdate"]]) && !$this->isValidExceptionDate($base_date, $this->fromGMT($this->tz, $exception_props[$this->proptags["startdate"]]))) {
                 return false;
             }
 
@@ -227,7 +262,7 @@
             $basetime = $baseday + $this->recur["startocc"] * 60;
             $extomodify = false;
 
-            for($i=0;$i<count($this->recur["changed_occurences"]);$i++) {
+            for($i = 0, $len = count($this->recur["changed_occurences"]); $i < $len; $i++) {
                 if($this->isSameDay($this->recur["changed_occurences"][$i]["basedate"], $baseday))
                     $extomodify = &$this->recur["changed_occurences"][$i];
             }
@@ -235,7 +270,7 @@
             if(!$extomodify)
                 return false;
 
-            // remove basedate property as we want to preserver the old value
+            // remove basedate property as we want to preserve the old value
             // client will send basedate with time part as zero, so discard that value
             unset($exception_props[$this->proptags["basedate"]]);
 
@@ -277,6 +312,15 @@
 
             $exception_props[PR_MESSAGE_CLASS] = "IPM.OLE.CLASS.{00061055-0000-0000-C000-000000000046}";
 
+            // synchronize commonstart/commonend with startdate/duedate
+            if(isset($exception_props[$this->proptags["startdate"]])) {
+                $exception_props[$this->proptags["commonstart"]] = $exception_props[$this->proptags["startdate"]];
+            }
+
+            if(isset($exception_props[$this->proptags["duedate"]])) {
+                $exception_props[$this->proptags["commonend"]] = $exception_props[$this->proptags["duedate"]];
+            }
+
             $attach = $this->getExceptionAttachment($baseday);
             if(!$attach) {
                 if ($copy_attach_from) {
@@ -290,16 +334,22 @@
 
                 // Set exception properties on embedded message and save
                 mapi_setprops($message, $exception_props);
-                $this->setExceptionRecipients($message, $exception_recips);
+                $this->setExceptionRecipients($message, $exception_recips, false);
                 mapi_savechanges($message);
 
-
-                // Set new values for 'PR_EXCEPTION_STARTTIME' and 'PR_EXCEPTION_ENDTIME' on attachment which holds the embedded msg and save
+                // If a new start or duedate is provided, we update the properties 'PR_EXCEPTION_STARTTIME' and 'PR_EXCEPTION_ENDTIME'
+                // on the attachment which holds the embedded msg and save everything.
                 $props = array();
-                $props[PR_EXCEPTION_STARTTIME] = $this->fromGMT($this->tz, $exception_props[$this->proptags["startdate"]]);
-                $props[PR_EXCEPTION_ENDTIME] = $this->fromGMT($this->tz, $exception_props[$this->proptags["duedate"]]);
+                if (isset($exception_props[$this->proptags["startdate"]])) {
+                    $props[PR_EXCEPTION_STARTTIME] = $this->fromGMT($this->tz, $exception_props[$this->proptags["startdate"]]);
+                }
+                if (isset($exception_props[$this->proptags["duedate"]])) {
+                    $props[PR_EXCEPTION_ENDTIME] = $this->fromGMT($this->tz, $exception_props[$this->proptags["duedate"]]);
+                }
+                if (!empty($props)) {
+                    mapi_setprops($attach, $props);
+                }
 
-                mapi_setprops($attach, $props);
                 mapi_savechanges($attach);
             }
 
@@ -343,61 +393,48 @@
         }
 
         /**
-         * Check to see reminder time does not exceed the starttime
-         * of the previous recurring item
+         * Check to see if the exception proposed at a certain basedate is allowed concerning reminder times:
+         *
+         * Both must be true:
+         * - reminder time of this item is not before the starttime of the previous recurring item
+         * - reminder time of the next item is not before the starttime of this item
          *
          * @param date $basedate the base date of the exception (LOCAL time of non-exception occurrence)
          * @param string $reminderminutes reminder minutes which is set of the item
          * @param date $startdate the startdate of the selected item
-         * @returns boolean if the reminder minutes value valid.
+         * @returns boolean if the reminder minutes value valid (FALSE if either of the rules above are FALSE)
          */
         function isValidReminderTime($basedate, $reminderminutes, $startdate)
         {
             $isreminderrangeset = false;
 
             // get all occurence items before the seleceted items occurence starttime
-            $occitems = $this->getItems($this->messageprops[$this->proptags["startdate"]], $basedate);
-            $len = count($occitems);
+            $occitems = $this->getItems($this->messageprops[$this->proptags["startdate"]], $this->toGMT($this->tz, $basedate));
 
-            // as occitems array is sorted in ascending order of startdate so, to get the previous occurence we take the second last items in occitems .
-            $previousitem_basedate = $occitems[$len - 1]["basedate"];   //previous basedate in local format
-            $previousitem_startdate = $this->toGMT($this->tz, ($previousitem_basedate + ($this->recur["startocc"] * 60)));  //previous startdate in GMT timezone
+            if(!empty($occitems)) {
+                // as occitems array is sorted in ascending order of startdate, to get the previous occurence we take the last items in occitems .
+                $previousitem_startdate = $occitems[count($occitems) - 1][$this->proptags["startdate"]];
 
-            if(count($this->recur["changed_occurences"] > 0)){
-
-                for($i=0 ;$i<count($this->recur["changed_occurences"]); $i++) {
-                    //check that whether the previous occurence is already a exceptions
-                    if($this->isSameDay($this->recur["changed_occurences"][$i]["basedate"], $previousitem_basedate)){
-                        $previousitem_startdate = $this->toGMT($this->tz, $this->recur["changed_occurences"][$i]["start"]); // in GMT timezone
-
-                        $reminderrange = ($startdate - $previousitem_startdate)/60;
-                        $isreminderrangeset = true;
-            }
-                }
-            }else{
-                $reminderrange = ($startdate - $previousitem_startdate)/60;
-                $isreminderrangeset = true;
-            }
-
-            if(!$isreminderrangeset)
-                $reminderrange = ($startdate - $previousitem_startdate)/60;
-
-            // Get the endtime of the current occurrence and find the next occurrence of the current moved occurrence.
-            $currentOcc = $this->getItems($basedate, 0x7ff00000, 1, true);
-            $currentOccEnd = $currentOcc[0][$this->proptags["duedate"]];
-            $nextOcc = $this->getItems($currentOccEnd, 0x7ff00000, 1, true);
-
-            if(count($nextOcc) > 0) {
-                // Get reminder time of the next occurrence.
-                $nextOccReminderTime = $nextOcc[0][$this->proptags["startdate"]] - ($nextOcc[0][$this->proptags["reminder_minutes"]] * 60);
-                // Check that the occurrence doesn't start after the next occurrence reminder.
-                if($nextOccReminderTime < $startdate)
+                // if our reminder is set before or equal to the beginning of the previous occurrence, then that's not allowed
+                if($startdate - ($reminderminutes*60) <= $previousitem_startdate)
                     return false;
             }
 
-            if($reminderminutes >= $reminderrange)
-                return false;
-            else
+            // Get the endtime of the current occurrence and find the next two occurrences (including the current occurrence)
+            $currentOcc = $this->getItems($this->toGMT($this->tz, $basedate), 0x7ff00000, 2, true);
+
+            // If there are another two occurrences, then the first is the current occurrence, and the one after that
+            // is the next occurrence.
+            if(count($currentOcc) > 1) {
+                $next = $currentOcc[1];
+                // Get reminder time of the next occurrence.
+                $nextOccReminderTime = $next[$this->proptags["startdate"]] - ($next[$this->proptags["reminder_minutes"]] * 60);
+                // If the reminder time of the next item is before the start of this item, then that's not allowed
+                if($nextOccReminderTime <= $startdate)
+                    return false;
+            }
+
+            // All was ok
             return true;
         }
 
@@ -417,6 +454,12 @@
 
             $this->deleteAttachments();
             $this->saveRecurrence();
+
+            // if client has not set the recurring_pattern then we should generate it and save it
+            $messageProps = mapi_getprops($this->message, Array($this->proptags["recurring_pattern"]));
+            if(empty($messageProps[$this->proptags["recurring_pattern"]])) {
+                $this->saveRecurrencePattern();
+            }
         }
 
         // Returns the start or end time of the occurrence on the given base date.
@@ -466,7 +509,7 @@
              * On the first occurence of greater nextreminder break the loop
              * and return the value to calling function.
              */
-            for($i=0; $i<count($items) ;$i++)
+            for($i = 0, $len = count($items); $i < $len; $i++)
             {
                 $item = $items[$i];
                 $tempnextreminder = $item[$this->proptags["startdate"]] - ( $item[$this->proptags["reminder_minutes"]] * 60 );
@@ -497,7 +540,7 @@
          * @param $rows array Array of rowdata as if they were returned directly from mapi_table_queryrows. Each recurring item is
          *                    expanded so that it seems that there are only many single appointments in the table.
          */
-        function getCalendarItems($store, $calendar, $viewstart, $viewend, $propsrequested)
+        static function getCalendarItems($store, $calendar, $viewstart, $viewend, $propsrequested)
         {
             return getCalendarItems($store, $calendar, $viewstart, $viewend, $propsrequested);
         }
@@ -507,6 +550,146 @@
          * CODE BELOW THIS LINE IS FOR INTERNAL USE ONLY
          *****************************************************************************************************************
          */
+
+        /**
+         * Generates and stores recurrence pattern string to recurring_pattern property.
+         */
+        function saveRecurrencePattern()
+        {
+            // Start formatting the properties in such a way we can apply
+            // them directly into the recurrence pattern.
+            $type = $this->recur['type'];
+            $everyn = $this->recur['everyn'];
+            $start = $this->recur['start'];
+            $end = $this->recur['end'];
+            $term = $this->recur['term'];
+            $numocc = isset($this->recur['numoccur']) ? $this->recur['numoccur'] : false;
+            $startocc = $this->recur['startocc'];
+            $endocc = $this->recur['endocc'];
+            $pattern = '';
+            $occSingleDayRank = false;
+            $occTimeRange = ($startocc != 0 && $endocc != 0);
+
+            switch ($type) {
+                // Daily
+                case 0x0A:
+                    if ($everyn == 1) {
+                        $type = _('workday');
+                        $occSingleDayRank = true;
+                    } else if ($everyn == (24 * 60)) {
+                        $type = _('day');
+                        $occSingleDayRank = true;
+                    } else {
+                        $everyn /= (24 * 60);
+                        $type = _('days');
+                        $occSingleDayRank = false;
+                    }
+                    break;
+                // Weekly
+                case 0x0B:
+                    if ($everyn == 1) {
+                        $type = _('week');
+                        $occSingleDayRank = true;
+                    } else {
+                        $type = _('weeks');
+                        $occSingleDayRank = false;
+                    }
+                    break;
+                // Monthly
+                case 0x0C:
+                    if ($everyn == 1) {
+                        $type = _('month');
+                        $occSingleDayRank = true;
+                    } else {
+                        $type = _('months');
+                        $occSingleDayRank = false;
+                    }
+                    break;
+                // Yearly
+                case 0x0D:
+                    if ($everyn <= 12) {
+                        $everyn = 1;
+                        $type = _('year');
+                        $occSingleDayRank = true;
+                    } else {
+                        $everyn = $everyn / 12;
+                        $type = _('years');
+                        $occSingleDayRank = false;
+                    }
+                    break;
+            }
+
+            // get timings of the first occurence
+            $firstoccstartdate = isset($startocc) ? $start + (((int) $startocc) * 60) : $start;
+            $firstoccenddate = isset($endocc) ? $end + (((int) $endocc) * 60) : $end;
+
+            $start = gmdate(_('d-m-Y'), $firstoccstartdate);
+            $end = gmdate(_('d-m-Y'), $firstoccenddate);
+            $startocc = gmdate(_('G:i'), $firstoccstartdate);
+            $endocc = gmdate(_('G:i'), $firstoccenddate);
+
+            // Based on the properties, we need to generate the recurrence pattern string.
+            // This is obviously very easy since we can simply concatenate a bunch of strings,
+            // however this messes up translations for languages which order their words
+            // differently.
+            // To improve translation quality we create a series of default strings, in which
+            // we only have to fill in the correct variables. The base string is thus selected
+            // based on the available properties.
+            if ($term == 0x23) {
+                // Never ends
+                if ($occTimeRange) {
+                    if ($occSingleDayRank) {
+                        $pattern = sprintf(_('Occurs every %s effective %s from %s to %s.'), $type, $start, $startocc, $endocc);
+                    } else {
+                        $pattern = sprintf(_('Occurs every %s %s effective %s from %s to %s.'), $everyn, $type, $start, $startocc, $endocc);
+                    }
+                } else {
+                    if ($occSingleDayRank) {
+                        $pattern = sprintf(_('Occurs every %s effective %s.'), $type, $start);
+                    } else {
+                        $pattern = sprintf(_('Occurs every %s %s effective %s.'), $everyn, $type, $start);
+                    }
+                }
+            } else if ($term == 0x22) {
+                // After a number of times
+                if ($occTimeRange) {
+                    if ($occSingleDayRank) {
+                        $pattern = sprintf(ngettext('Occurs every %s effective %s for %s occurence from %s to %s.',
+                                                'Occurs every %s effective %s for %s occurences from %s to %s.', $numocc), $type, $start, $numocc, $startocc, $endocc);
+                    } else {
+                        $pattern = sprintf(ngettext('Occurs every %s %s effective %s for %s occurence from %s to %s.',
+                                                'Occurs every %s %s effective %s for %s occurences %s to %s.', $numocc), $everyn, $type, $start, $numocc, $startocc, $endocc);
+                    }
+                } else {
+                    if ($occSingleDayRank) {
+                        $pattern = sprintf(ngettext('Occurs every %s effective %s for %s occurence.',
+                                                     'Occurs every %s effective %s for %s occurences.', $numocc), $type, $start, $numocc);
+                    } else {
+                        $pattern = sprintf(ngettext('Occurs every %s %s effective %s for %s occurence.',
+                                                         'Occurs every %s %s effective %s for %s occurences.', $numocc), $everyn, $type, $start, $numocc);
+                    }
+                }
+            } else if ($term == 0x21) {
+                // After the given enddate
+                if ($occTimeRange) {
+                    if ($occSingleDayRank) {
+                        $pattern = sprintf(_('Occurs every %s effective %s until %s from %s to %s.'), $type, $start, $end, $startocc, $endocc);
+                    } else {
+                        $pattern = sprintf(_('Occurs every %s %s effective %s until %s from %s to %s.'), $everyn, $type, $start, $end, $startocc, $endocc);
+                    }
+                } else {
+                    if ($occSingleDayRank) {
+                        $pattern = sprintf(_('Occurs every %s effective %s until %s.'), $type, $start, $end);
+                    } else {
+                        $pattern = sprintf(_('Occurs every %s %s effective %s until %s.'), $everyn, $type, $start, $end);
+                    }
+                }
+            }
+
+            if(!empty($pattern)) {
+                mapi_setprops($this->message, Array($this->proptags["recurring_pattern"] => $pattern ));
+            }
+        }
 
         /*
          * Remove an exception by base_date. This is the base date in local daystart time
@@ -545,7 +728,7 @@
          */
         function createExceptionAttachment($exception_props, $exception_recips = array(), $copy_attach_from = false)
         {
-              //Create new attachment.
+              // Create new attachment.
               $attachment = mapi_message_createattach($this->message);
               $props = array();
               $props[PR_ATTACHMENT_FLAGS] = 2;
@@ -587,7 +770,9 @@
             }
 
             mapi_message_setprops($imessage, $props);
-            $this->setExceptionRecipients($imessage, $exception_recips);
+
+            $this->setExceptionRecipients($imessage, $exception_recips, true);
+
             mapi_message_savechanges($imessage);
             mapi_message_savechanges($attachment);
         }
@@ -649,18 +834,20 @@
                             )
             );
             $attachments = mapi_message_getattachmenttable($this->message);
-            $attachTable = mapi_table_queryallrows($attachments, Array(PR_ATTACH_NUM), $attach_res);
+            $attachRows = mapi_table_queryallrows($attachments, Array(PR_ATTACH_NUM), $attach_res);
 
-            foreach($attachTable as $attachRow)
-            {
-                $tempattach = mapi_message_openattach($this->message, $attachRow[PR_ATTACH_NUM]);
-                $exception = mapi_attach_openobj($tempattach);
+            if(is_array($attachRows)) {
+                foreach($attachRows as $attachRow)
+                {
+                    $tempattach = mapi_message_openattach($this->message, $attachRow[PR_ATTACH_NUM]);
+                    $exception = mapi_attach_openobj($tempattach);
 
-                  $data = mapi_message_getprops($exception, array($this->proptags["basedate"]));
+                    $data = mapi_message_getprops($exception, array($this->proptags["basedate"]));
 
-                  if(isset($data[$this->proptags["basedate"]]) && $this->isSameDay($this->fromGMT($this->tz,$data[$this->proptags["basedate"]]), $base_date)) {
-                      return $tempattach;
-                  }
+                    if($this->isSameDay($this->fromGMT($this->tz,$data[$this->proptags["basedate"]]), $base_date)) {
+                        return $tempattach;
+                    }
+                }
             }
 
             return false;
@@ -708,6 +895,8 @@
                 $newitem = $this->messageprops;
                 $newitem[$this->proptags["startdate"]] = $occstart;
                 $newitem[$this->proptags["duedate"]] = $occend;
+                $newitem[$this->proptags["commonstart"]] = $occstart;
+                $newitem[$this->proptags["commonend"]] = $occend;
                 $newitem["basedate"] = $basedate;
             }
 
@@ -821,6 +1010,8 @@
             // MAPI-compatible properties (you can handle an exception as a normal calendar item like this)
             $item[$this->proptags["startdate"]] = $this->toGMT($this->tz, $exception["start"]);
             $item[$this->proptags["duedate"]] = $this->toGMT($this->tz, $exception["end"]);
+            $item[$this->proptags["commonstart"]] = $item[$this->proptags["startdate"]];
+            $item[$this->proptags["commonend"]] = $item[$this->proptags["duedate"]];
 
             if(isset($exception["subject"])) {
                 $item[$this->proptags["subject"]] = $exception["subject"];
@@ -854,20 +1045,107 @@
         }
 
         /**
-         * Function which sets recipients for an exception, also checks for deleted recipients.
+         * Function which sets recipients for an exception.
+         *
+         * The $exception_recips can be provided in 2 ways:
+         *  - A delta which indicates which recipients must be added, removed or deleted.
+         *  - A complete array of the recipients which should be applied to the message.
+         *
+         * The first option is preferred as it will require less work to be executed.
+         *
+         * @param resource $message exception attachment of recurring item
+         * @param array $exception_recips list of recipients
+         * @param boolean $copy_orig_recips True to copy all recipients which are on the original
+         * message to the attachment by default. False if only the $exception_recips changes should
+         * be applied.
+         */
+        function setExceptionRecipients($message, $exception_recips, $copy_orig_recips = true)
+        {
+            if (isset($exception_recips['add']) || isset($exception_recips['remove']) || isset($exception_recips['modify'])) {
+                $this->setDeltaExceptionRecipients($message, $exception_recips, $copy_orig_recips);
+            } else {
+                $this->setAllExceptionRecipients($message, $exception_recips);
+            }
+        }
+
+        /**
+         * Function which applies the provided delta for recipients changes to the exception.
+         *
+         * The $exception_recips should be an array containing the following keys:
+         *  - "add": this contains an array of recipients which must be added
+         *  - "remove": This contains an array of recipients which must be removed
+         *  - "modify": This contains an array of recipients which must be modified
+         *
+         * @param resource $message exception attachment of recurring item
+         * @param array $exception_recips list of recipients
+         * @param boolean $copy_orig_recips True to copy all recipients which are on the original
+         * message to the attachment by default. False if only the $exception_recips changes should
+         * be applied.
+         */
+        function setDeltaExceptionRecipients($exception, $exception_recips, $copy_orig_recips)
+        {
+            // Check if the recipients from the original message should be copied,
+            // if so, open the recipient table of the parent message and apply all
+            // rows on the target recipient.
+            if ($copy_orig_recips === true) {
+                $origTable = mapi_message_getrecipienttable($this->message);
+                $recipientRows = mapi_table_queryallrows($origTable, $this->recipprops);
+                mapi_message_modifyrecipients($exception, MODRECIP_ADD, $recipientRows);
+            }
+
+            // Add organizer to meeting only if it is not organized.
+            $msgprops = mapi_getprops($exception, array(PR_SENT_REPRESENTING_ENTRYID, PR_SENT_REPRESENTING_EMAIL_ADDRESS, PR_SENT_REPRESENTING_NAME, PR_SENT_REPRESENTING_ADDRTYPE, $this->proptags['responsestatus']));
+            if (isset($msgprops[$this->proptags['responsestatus']]) && $msgprops[$this->proptags['responsestatus']] != olResponseOrganized){
+                $this->addOrganizer($msgprops, $exception_recips['add']);
+            }
+
+            // Remove all deleted recipients
+            if (isset($exception_recips['remove'])) {
+                foreach ($exception_recips['remove'] as &$recip) {
+                    if (!isset($recipient[PR_RECIPIENT_FLAGS]) || $recip[PR_RECIPIENT_FLAGS] != (recipReserved | recipExceptionalDeleted | recipSendable)) {
+                        $recip[PR_RECIPIENT_FLAGS] = recipSendable | recipExceptionalDeleted;
+                    } else {
+                        $recip[PR_RECIPIENT_FLAGS] = recipReserved | recipExceptionalDeleted | recipSendable;
+                    }
+                    $recip[PR_RECIPIENT_TRACKSTATUS] = olResponseNone;        // No Response required
+                }
+                unset($recip);
+                mapi_message_modifyrecipients($exception, MODRECIP_MODIFY, $exception_recips['remove']);
+            }
+
+            // Add all new recipients
+            if (isset($exception_recips['add'])) {
+                mapi_message_modifyrecipients($exception, MODRECIP_ADD, $exception_recips['add']);
+            }
+
+            // Modify the existing recipients
+            if (isset($exception_recips['modify'])) {
+                mapi_message_modifyrecipients($exception, MODRECIP_MODIFY, $exception_recips['modify']);
+            }
+        }
+
+        /**
+         * Function which applies the provided recipients to the exception, also checks for deleted recipients.
+         *
+         * The $exception_recips should be an array containing all recipients which must be applied
+         * to the exception. This will copy all recipients from the original message and then start filter
+         * out all recipients which are not provided by the $exception_recips list.
          *
          * @param resource $message exception attachment of recurring item
          * @param array $exception_recips list of recipients
          */
-        function setExceptionRecipients($message, $exception_recips)
+        function setAllExceptionRecipients($message, $exception_recips)
         {
             $deletedRecipients = array();
-            $recipientTable = mapi_message_getrecipienttable($message);
-            $recipientRows = mapi_table_queryallrows($recipientTable, array(PR_ENTRYID, PR_DISPLAY_NAME, PR_EMAIL_ADDRESS, PR_RECIPIENT_ENTRYID, PR_RECIPIENT_TYPE, PR_SEND_INTERNET_ENCODING, PR_SEND_RICH_INFO, PR_RECIPIENT_DISPLAY_NAME, PR_ADDRTYPE, PR_DISPLAY_TYPE, PR_RECIPIENT_TRACKSTATUS, PR_RECIPIENT_FLAGS, PR_ROWID));
+            $useMessageRecipients = false;
 
-            if (count($recipientRows) == 0) {
+            $recipientTable = mapi_message_getrecipienttable($message);
+            $recipientRows = mapi_table_queryallrows($recipientTable, $this->recipprops);
+
+            if (empty($recipientRows)) {
+                $useMessageRecipients = true;
                 $recipientTable = mapi_message_getrecipienttable($this->message);
-                $recipientRows = mapi_table_queryallrows($recipientTable, array(PR_ENTRYID, PR_DISPLAY_NAME, PR_EMAIL_ADDRESS, PR_RECIPIENT_ENTRYID, PR_RECIPIENT_TYPE, PR_SEND_INTERNET_ENCODING, PR_SEND_RICH_INFO, PR_RECIPIENT_DISPLAY_NAME, PR_ADDRTYPE, PR_DISPLAY_TYPE, PR_RECIPIENT_TRACKSTATUS, PR_RECIPIENT_FLAGS, PR_ROWID));
+                $recipientRows = mapi_table_queryallrows($recipientTable, $this->recipprops);
             }
 
             // Add organizer to meeting only if it is not organized.
@@ -876,39 +1154,54 @@
                 $this->addOrganizer($msgprops, $exception_recips);
             }
 
-            if (count($exception_recips) > 0) {
+            if (!empty($exception_recips)) {
                 foreach($recipientRows as $key => $recipient) {
                     $found = false;
                     foreach($exception_recips as $excep_recip) {
-                        if ($recipient[PR_ENTRYID] == $excep_recip[PR_ENTRYID])
+                        if ($recipient[PR_SEARCH_KEY] == $excep_recip[PR_SEARCH_KEY])
                             $found = true;
                     }
 
                     if (!$found) {
-                        if (count($deletedRecipients) == 0) {
-                            $recipient[PR_RECIPIENT_FLAGS] = $recipient[PR_RECIPIENT_FLAGS] != 545 ? recipSendable | recipExceptionalDeleted : 545;
-                            $recipient[PR_RECIPIENT_TRACKSTATUS] = 0;        // No Response required
-                            $deletedRecipients[] = $recipient;
-                        }
+                       $foundInDeletedRecipients = false;
+                       // Look if the $recipient is in the list of deleted recipients
+                       if (!empty($deletedRecipients)) {
+                               foreach($deletedRecipients as $recip) {
+                                   if ($recip[PR_SEARCH_KEY] == $recipient[PR_SEARCH_KEY]){
+                                       $foundInDeletedRecipients = true;
+                                       break;
+                                   }
+                               }
+                       }
 
-                        foreach($deletedRecipients as $recip) {
-                            if ($recip[PR_ENTRYID] != $recipient[PR_ENTRYID]){
-                                $recipient[PR_RECIPIENT_FLAGS] = $recipient[PR_RECIPIENT_FLAGS] != 545 ? recipSendable | recipExceptionalDeleted : 545;            // recipExceptionDeleted
-                                $recipient[PR_RECIPIENT_TRACKSTATUS] = 0;        // No Response required
-                                $deletedRecipients[] = $recipient;
+                       // If recipient is not in list of deleted recipient, add him
+                       if (!$foundInDeletedRecipients) {
+                            if (!isset($recipient[PR_RECIPIENT_FLAGS]) || $recipient[PR_RECIPIENT_FLAGS] != (recipReserved | recipExceptionalDeleted | recipSendable)) {
+                                $recipient[PR_RECIPIENT_FLAGS] = recipSendable | recipExceptionalDeleted;
+                            } else {
+                                $recipient[PR_RECIPIENT_FLAGS] = recipReserved | recipExceptionalDeleted | recipSendable;
                             }
+                            $recipient[PR_RECIPIENT_TRACKSTATUS] = olRecipientTrackStatusNone;    // No Response required
+                            $deletedRecipients[] = $recipient;
                         }
                     }
 
-                    // First remove this recipient from message
-                    mapi_message_modifyrecipients($message, MODRECIP_REMOVE, array($recipient));
+                    // When $message contains a non-empty recipienttable, we must delete the recipients
+                    // before re-adding them. However, when $message is doesn't contain any recipients,
+                    // we are using the recipient table of the original message ($this->message)
+                    // rather then $message. In that case, we don't need to remove the recipients
+                    // from the $message, as the recipient table is already empty, and
+                    // mapi_message_modifyrecipients() will throw an error.
+                    if ($useMessageRecipients === false) {
+                        mapi_message_modifyrecipients($message, MODRECIP_REMOVE, array($recipient));
+                    }
                 }
                 $exception_recips = array_merge($exception_recips, $deletedRecipients);
             } else {
                 $exception_recips = $recipientRows;
             }
 
-            if (count($exception_recips) > 0) {
+            if (!empty($exception_recips)) {
                 // Set the new list of recipients on the exception message, this also removes the existing recipients
                 mapi_message_modifyrecipients($message, 0, $exception_recips);
             }
@@ -923,7 +1216,7 @@
         function getAllExceptions()
         {
             $result = false;
-            if (count($this->recur["changed_occurences"]) > 0) {
+            if (!empty($this->recur["changed_occurences"])) {
                 $result = array();
                 foreach($this->recur["changed_occurences"] as $exception) {
                     $result[] = $exception["basedate"];
@@ -946,7 +1239,7 @@
             $hasOrganizer = false;
             // Check if meeting already has an organizer.
             foreach ($recipients as $key => $recipient){
-                if (isset($recipient[PR_RECIPIENT_FLAGS]) && $recipient[PR_RECIPIENT_FLAGS] == 3) {
+                if (isset($recipient[PR_RECIPIENT_FLAGS]) && $recipient[PR_RECIPIENT_FLAGS] == (recipSendable | recipOrganizer)) {
                     $hasOrganizer = true;
                 } else if ($isException && !isset($recipient[PR_RECIPIENT_FLAGS])){
                     // Recipients for an occurrence
@@ -963,8 +1256,8 @@
                 $organizer[PR_RECIPIENT_TYPE] = MAPI_TO;
                 $organizer[PR_RECIPIENT_DISPLAY_NAME] = $messageProps[PR_SENT_REPRESENTING_NAME];
                 $organizer[PR_ADDRTYPE] = empty($messageProps[PR_SENT_REPRESENTING_ADDRTYPE])?'SMTP':$messageProps[PR_SENT_REPRESENTING_ADDRTYPE];
-                $organizer[PR_RECIPIENT_TRACKSTATUS] = 0;
-                $organizer[PR_RECIPIENT_FLAGS] = 3;
+                $organizer[PR_RECIPIENT_TRACKSTATUS] = olRecipientTrackStatusNone;
+                $organizer[PR_RECIPIENT_FLAGS] = recipSendable | recipOrganizer;
 
                 // Add organizer to recipients list.
                 array_unshift($recipients, $organizer);

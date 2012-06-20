@@ -92,6 +92,7 @@ class DeviceManager {
 
         $this->loopdetection = new LoopDetection();
         $this->loopdetection->ProcessLoopDetectionInit();
+        $this->loopdetection->ProcessLoopDetectionPreviousConnectionFailed();
 
         $this->stateManager = new StateManager();
         $this->stateManager->SetDevice($this->device);
@@ -165,6 +166,16 @@ class DeviceManager {
                 ZLog::Write(LOGLEVEL_ERROR, "DeviceManager->Save(): Exception: ". $snfex->getMessage());
             }
         }
+
+        // remove old search data
+        $oldpid = $this->loopdetection->ProcessLoopDetectionGetOutdatedSearchPID();
+        if ($oldpid) {
+            ZPush::GetBackend()->GetSearchProvider()->TerminateSearch($oldpid);
+        }
+
+        // we terminated this process
+        if ($this->loopdetection)
+            $this->loopdetection->ProcessLoopDetectionTerminate();
 
         return true;
     }
@@ -573,6 +584,23 @@ class DeviceManager {
      */
     public function AnnounceProcessStatus($folderid, $status) {
         return $this->loopdetection->ProcessLoopDetectionAddStatus($folderid, $status);
+    }
+
+    /**
+     * Checks if the given counter for a certain uuid+folderid was exported before.
+     * This is called when a heartbeat request found changes to make sure that the same
+     * changes are not exported twice, as during the heartbeat there could have been a normal
+     * sync request.
+     *
+     * @param string $folderid          folder id
+     * @param string $uuid              synkkey
+     * @param string $counter           synckey counter
+     *
+     * @access public
+     * @return boolean                  indicating if an uuid+counter were exported (with changes) before
+     */
+    public function CheckHearbeatStateIntegrity($folderid, $uuid, $counter) {
+        return $this->loopdetection->IsSyncStateObsolete($folderid, $uuid, $counter);
     }
 
     /**

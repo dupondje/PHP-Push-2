@@ -91,6 +91,28 @@ class SearchProvider implements ISearchProvider{
     }
 
     /**
+     * Searches for the emails on the server
+     *
+     * @param ContentParameter $cpo
+     *
+     * @return array
+     */
+    public function GetMailboxSearchResults($cpo){
+        return array();
+    }
+
+    /**
+    * Terminates a search for a given PID
+    *
+    * @param int $pid
+    *
+    * @return boolean
+    */
+    public function TerminateSearch($pid) {
+        return true;
+    }
+
+    /**
      * Disconnects from the current search provider
      *
      * @access public

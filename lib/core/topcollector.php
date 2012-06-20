@@ -196,8 +196,8 @@ class TopCollector extends InterProcessData {
      * @return boolean  status
      */
     public function ClearLatest($all = false) {
-        // it's ok when doing this every 5 sec
-        if ($all == false && time() % 5 != 0 )
+        // it's ok when doing this every 10 sec
+        if ($all == false && time() % 10 != 0 )
             return true;
 
         $stat = false;
@@ -214,9 +214,9 @@ class TopCollector extends InterProcessData {
                 foreach ($topdata as $devid=>$users) {
                     foreach ($users as $user=>$pids) {
                         foreach ($pids as $pid=>$line) {
-                            // remove everything which terminated for 10 secs or is not updated for more than 60 secs
-                            if (($line["ended"] != 0 && time() - $line["ended"] > 10) ||
-                                time() - $line["update"] > 60) {
+                            // remove everything which terminated for 20 secs or is not updated for more than 120 secs
+                            if (($line["ended"] != 0 && time() - $line["ended"] > 20) ||
+                                time() - $line["update"] > 120) {
                                 $toClear[] = array($devid, $user, $pid);
                             }
                         }
@@ -268,7 +268,7 @@ class TopCollector extends InterProcessData {
      */
     private function isEnabled() {
         $isEnabled = ($this->hasData(self::ENABLEDAT)) ? $this->getData(self::ENABLEDAT) : false;
-        return ($isEnabled !== false && ($isEnabled +10) > time());
+        return ($isEnabled !== false && ($isEnabled +300) > time());
     }
 
     /**

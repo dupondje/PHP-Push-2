@@ -64,15 +64,6 @@ abstract class BackendDiff extends Backend {
     protected $store;
 
     /**
-     * Constructor
-     *
-     * @access public
-     */
-    public function DiffBackend() {
-        parent::Backend();
-    }
-
-    /**
      * Setup the backend to work on a specific store or checks ACLs there.
      * If only the $store is submitted, all Import/Export/Fetch/Etc operations should be
      * performed on this store (switch operations store).

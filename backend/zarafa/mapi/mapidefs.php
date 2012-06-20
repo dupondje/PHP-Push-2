@@ -1,6 +1,6 @@
 <?php
 /*
- * Copyright 2005 - 2009  Zarafa B.V.
+ * Copyright 2005 - 2012  Zarafa B.V.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License, version 3,
@@ -360,7 +360,7 @@ define('STORE_ATTACH_OK'                         ,0x00000020); // The message st
 define('STORE_CATEGORIZE_OK'                     ,0x00000400); // The message store supports categorized views of tables.
 define('STORE_CREATE_OK'                         ,0x00000010); // The message store supports creation of new messages.
 define('STORE_ENTRYID_UNIQUE'                    ,0x00000001); // Entry identifiers for the objects in the message store are unique, that is, never reused during the life of the store.
-define('STORE_HTML_OK'                           ,0x00010000); // The message store supports Hypertext Markup Language (HTML) messages, stored in the PR_BODY_HTML property. Note that STORE_HTML_OK is not defined in versions of MAPIDEFS.H included with Microsoft(C) Exchange 2000 Server and earlier. If your development environment uses a MAPIDEFS.H file that does not include STORE_HTML_OK, use the value 0x00010000 instead.
+define('STORE_HTML_OK'                           ,0x00010000); // The message store supports Hypertext Markup Language (HTML) messages, stored in the PR_BODY_HTML property. Note that STORE_HTML_OK is not defined in versions of MAPIDEFS.H included with Microsoft� Exchange 2000 Server and earlier. If your development environment uses a MAPIDEFS.H file that does not include STORE_HTML_OK, use the value 0x00010000 instead.
 define('STORE_LOCALSTORE'                        ,0x00080000); // This flag is reserved and should not be used.
 define('STORE_MODIFY_OK'                         ,0x00000008); // The message store supports modification of its existing messages.
 define('STORE_MV_PROPS_OK'                       ,0x00000200); // The message store supports multivalued properties, guarantees the stability of value order in a multivalued property throughout a save operation, and supports instantiation of multivalued properties in tables.
@@ -379,36 +379,36 @@ define('STORE_UNICODE_OK'                        ,0x00040000); // The message st
 
 /*  PR_DISPLAY_TYPEs                 */
 /*  For address book contents tables */
-define('DT_MAILUSER',                             0x00000000);
-define('DT_DISTLIST',                             0x00000001);
-define('DT_FORUM',                                0x00000002);
-define('DT_AGENT',                                0x00000003);
-define('DT_ORGANIZATION',                         0x00000004);
-define('DT_PRIVATE_DISTLIST',                     0x00000005);
-define('DT_REMOTE_MAILUSER',                      0x00000006);
+define('DT_MAILUSER'                             ,0x00000000);
+define('DT_DISTLIST'                             ,0x00000001);
+define('DT_FORUM'                                ,0x00000002);
+define('DT_AGENT'                                ,0x00000003);
+define('DT_ORGANIZATION'                         ,0x00000004);
+define('DT_PRIVATE_DISTLIST'                     ,0x00000005);
+define('DT_REMOTE_MAILUSER'                      ,0x00000006);
 
 /* For address book hierarchy tables */
-define('DT_MODIFIABLE',                           0x00010000);
-define('DT_GLOBAL',                               0x00020000);
-define('DT_LOCAL',                                0x00030000);
-define('DT_WAN',                                  0x00040000);
-define('DT_NOT_SPECIFIC',                         0x00050000);
+define('DT_MODIFIABLE'                           ,0x00010000);
+define('DT_GLOBAL'                               ,0x00020000);
+define('DT_LOCAL'                                ,0x00030000);
+define('DT_WAN'                                  ,0x00040000);
+define('DT_NOT_SPECIFIC'                         ,0x00050000);
 
 /* For folder hierarchy tables */
-define('DT_FOLDER',                               0x01000000);
-define('DT_FOLDER_LINK',                          0x02000000);
-define('DT_FOLDER_SPECIAL',                       0x04000000);
+define('DT_FOLDER'                               ,0x01000000);
+define('DT_FOLDER_LINK'                          ,0x02000000);
+define('DT_FOLDER_SPECIAL'                       ,0x04000000);
 
 /* PR_DISPLAY_TYPE_EX values */
-define('DT_ROOM',                                 0x00000007);
-define('DT_EQUIPMENT',                            0x00000008);
-define('DT_SEC_DISTLIST',                         0x00000009);
+define('DT_ROOM'                                 ,0x00000007);
+define('DT_EQUIPMENT'                            ,0x00000008);
+define('DT_SEC_DISTLIST'                         ,0x00000009);
 
 /* PR_DISPLAY_TYPE_EX flags */
-define('DTE_FLAG_REMOTE_VALID',                   0x80000000);
-define('DTE_FLAG_ACL_CAPABLE',                    0x40000000); /* on for DT_MAILUSER and DT_SEC_DISTLIST */
-define('DTE_MASK_REMOTE',                         0x0000FF00);
-define('DTE_MASK_LOCAL',                          0x000000FF);
+define('DTE_FLAG_REMOTE_VALID'                   ,0x80000000);
+define('DTE_FLAG_ACL_CAPABLE'                    ,0x40000000); /* on for DT_MAILUSER and DT_SEC_DISTLIST */
+define('DTE_MASK_REMOTE'                         ,0x0000FF00);
+define('DTE_MASK_LOCAL'                          ,0x000000FF);
 
 /* OlResponseStatus */
 define('olResponseNone'                          ,0);
@@ -417,6 +417,17 @@ define('olResponseTentative'                     ,2);
 define('olResponseAccepted'                      ,3);
 define('olResponseDeclined'                      ,4);
 define('olResponseNotResponded'                  ,5);
+
+/* OlRecipientTrackStatus to set PR_RECIPIENT_TRACKSTATUS in recipient table
+ * Value of the recipient trackstatus are same as OlResponseStatus but
+ * recipient trackstatus doesn't have olResponseOrganized and olResponseNotResponded
+ * and olResponseNone has different interpretation with PR_RECIPIENT_TRACKSTATUS
+ * so to avoid confusions we have defined new constants.
+*/
+define('olRecipientTrackStatusNone'              ,0);
+define('olRecipientTrackStatusTentative'         ,2);
+define('olRecipientTrackStatusAccepted'          ,3);
+define('olRecipientTrackStatusDeclined'          ,4);
 
 /* OlMeetingStatus */
 define('olNonMeeting'                            ,0);
@@ -456,13 +467,13 @@ define('RES_SUBRESTRICTION'                      ,9);
 define('RES_COMMENT'                             ,10);
 
 /* restriction compares */
-define('RELOP_LT'                                , 0);
-define('RELOP_LE'                                , 1);
-define('RELOP_GT'                                , 2);
-define('RELOP_GE'                                , 3);
-define('RELOP_EQ'                                , 4);
-define('RELOP_NE'                                , 5);
-define('RELOP_RE'                                , 6);
+define('RELOP_LT'                                ,0);
+define('RELOP_LE'                                ,1);
+define('RELOP_GT'                                ,2);
+define('RELOP_GE'                                ,3);
+define('RELOP_EQ'                                ,4);
+define('RELOP_NE'                                ,5);
+define('RELOP_RE'                                ,6);
 
 /* string 'fuzzylevel' */
 define('FL_FULLSTRING'                           ,0x00000000);
@@ -477,23 +488,29 @@ define('BMR_EQZ'                                 ,0x00000000);
 define('BMR_NEZ'                                 ,0x00000001);
 
 /* array index values of restrictions -- same values are used in php-ext/main.cpp::PHPArraytoSRestriction() */
-define('VALUE'                                   , 0);        // propval
-define('RELOP'                                   , 1);        // compare method
-define('FUZZYLEVEL'                              , 2);        // string search flags
-define('CB'                                      , 3);        // size restriction
-define('ULTYPE'                                  , 4);        // bit mask restriction type BMR_xxx
-define('ULMASK'                                  , 5);        // bitmask
-define('ULPROPTAG'                               , 6);        // property
-define('ULPROPTAG1'                              , 7);        // RES_COMPAREPROPS 1st property
-define('ULPROPTAG2'                              , 8);        // RES_COMPAREPROPS 2nd property
-define('PROPS'                                   , 9);        // RES_COMMENT properties
-define('RESTRICTION'                             ,10);        // RES_COMMENT and RES_SUBRESTRICTION restriction
+define('VALUE'                                   ,0);        // propval
+define('RELOP'                                   ,1);        // compare method
+define('FUZZYLEVEL'                              ,2);        // string search flags
+define('CB'                                      ,3);        // size restriction
+define('ULTYPE'                                  ,4);        // bit mask restriction type BMR_xxx
+define('ULMASK'                                  ,5);        // bitmask
+define('ULPROPTAG'                               ,6);        // property
+define('ULPROPTAG1'                              ,7);        // RES_COMPAREPROPS 1st property
+define('ULPROPTAG2'                              ,8);        // RES_COMPAREPROPS 2nd property
+define('PROPS'                                   ,9);        // RES_COMMENT properties
+define('RESTRICTION'                             ,10);       // RES_COMMENT and RES_SUBRESTRICTION restriction
 
 /* GUID's for PR_MDB_PROVIDER */
 define("ZARAFA_SERVICE_GUID"                     ,makeGuid("{3C253DCA-D227-443C-94FE-425FAB958C19}"));    // default store
 define("ZARAFA_STORE_PUBLIC_GUID"                ,makeGuid("{D47F4A09-D3BD-493C-B2FC-3C90BBCB48D4}"));    // public store
 define("ZARAFA_STORE_DELEGATE_GUID"              ,makeGuid("{7C7C1085-BC6D-4E53-9DAB-8A53F8DEF808}"));    // other store
+define('ZARAFA_STORE_ARCHIVER_GUID'              ,makeGuid("{BC8953AD-2E3F-4172-9404-896FF459870F}"));    // archive store
 
+/* global profile section guid */
+define('pbGlobalProfileSectionGuid'              ,makeGuid("{C8B0DB13-05AA-1A10-9BB0-00AA002FC45A}"));
+
+/* Zarafa Contacts provider GUID */
+define('ZARAFA_CONTACTS_GUID'                    ,makeGuid("{30047F72-92E3-DA4F-B86A-E52A7FE46571}"));
 
 /* Permissions */
 
@@ -555,15 +572,15 @@ define('ST_RULE_PARSE_ERROR'                     ,0x0040);
 define('ST_CLEAR_OOF_HIST'                       ,0x80000000);
 
 // action types
-define('OP_MOVE'                                 , 1);
-define('OP_COPY'                                 , 2);
-define('OP_REPLY'                                , 3);
-define('OP_OOF_REPLY'                            , 4);
-define('OP_DEFER_ACTION'                         , 5);
-define('OP_BOUNCE'                               , 6);
-define('OP_FORWARD'                              , 7);
-define('OP_DELEGATE'                             , 8);
-define('OP_TAG'                                  , 9);
+define('OP_MOVE'                                 ,1);
+define('OP_COPY'                                 ,2);
+define('OP_REPLY'                                ,3);
+define('OP_OOF_REPLY'                            ,4);
+define('OP_DEFER_ACTION'                         ,5);
+define('OP_BOUNCE'                               ,6);
+define('OP_FORWARD'                              ,7);
+define('OP_DELEGATE'                             ,8);
+define('OP_TAG'                                  ,9);
 define('OP_DELETE'                               ,10);
 define('OP_MARK_AS_READ'                         ,11);
 
@@ -590,55 +607,61 @@ define('fbOutOfOffice'                           ,3);
 /* ICS flags */
 
 // For Synchronize()
-define('SYNC_UNICODE',                          0x01);
-define('SYNC_NO_DELETIONS',                     0x02);
-define('SYNC_NO_SOFT_DELETIONS',                0x04);
-define('SYNC_READ_STATE',                       0x08);
-define('SYNC_ASSOCIATED',                       0x10);
-define('SYNC_NORMAL',                           0x20);
-define('SYNC_NO_CONFLICTS',                     0x40);
-define('SYNC_ONLY_SPECIFIED_PROPS',             0x80);
-define('SYNC_NO_FOREIGN_KEYS',                  0x100);
-define('SYNC_LIMITED_IMESSAGE',                 0x200);
-define('SYNC_CATCHUP',                          0x400);
-define('SYNC_NEW_MESSAGE',                      0x800);   // only applicable to ImportMessageChange()
-define('SYNC_MSG_SELECTIVE',                    0x1000);  // Used internally.      Will reject if used by clients.
-define('SYNC_BEST_BODY',                        0x2000);
-define('SYNC_IGNORE_SPECIFIED_ON_ASSOCIATED',   0x4000);
-define('SYNC_PROGRESS_MODE',                    0x8000);  // AirMapi progress mode
-define('SYNC_FXRECOVERMODE',                    0x10000);
-define('SYNC_DEFER_CONFIG',                     0x20000);
-define('SYNC_FORCE_UNICODE',                    0x40000); // Forces server to return Unicode properties
+define('SYNC_UNICODE'                            ,0x01);
+define('SYNC_NO_DELETIONS'                       ,0x02);
+define('SYNC_NO_SOFT_DELETIONS'                  ,0x04);
+define('SYNC_READ_STATE'                         ,0x08);
+define('SYNC_ASSOCIATED'                         ,0x10);
+define('SYNC_NORMAL'                             ,0x20);
+define('SYNC_NO_CONFLICTS'                       ,0x40);
+define('SYNC_ONLY_SPECIFIED_PROPS'               ,0x80);
+define('SYNC_NO_FOREIGN_KEYS'                    ,0x100);
+define('SYNC_LIMITED_IMESSAGE'                   ,0x200);
+define('SYNC_CATCHUP'                            ,0x400);
+define('SYNC_NEW_MESSAGE'                        ,0x800);         // only applicable to ImportMessageChange()
+define('SYNC_MSG_SELECTIVE'                      ,0x1000);        // Used internally.      Will reject if used by clients.
+define('SYNC_BEST_BODY'                          ,0x2000);
+define('SYNC_IGNORE_SPECIFIED_ON_ASSOCIATED'     ,0x4000);
+define('SYNC_PROGRESS_MODE'                      ,0x8000);        // AirMapi progress mode
+define('SYNC_FXRECOVERMODE'                      ,0x10000);
+define('SYNC_DEFER_CONFIG'                       ,0x20000);
+define('SYNC_FORCE_UNICODE'                      ,0x40000);       // Forces server to return Unicode properties
 
-define('EMS_AB_ADDRESS_LOOKUP',                 0x00000001); // Flag for resolvename to resolve only exact matches
+define('EMS_AB_ADDRESS_LOOKUP'                   ,0x00000001);    // Flag for resolvename to resolve only exact matches
 
-define('TBL_BATCH',                             0x00000002); // Batch multiple table commands
+define('TBL_BATCH'                               ,0x00000002);    // Batch multiple table commands
 
 /* Flags for recipients in exceptions */
-define('recipSendable',                         0x00000001);        // sendable attendee.
-define('recipOrganizer',                        0x00000002);        // meeting organizer
-define('recipExceptionalResponse',              0x00000010);        // attendee gave a response for the exception
-define('recipExceptionalDeleted',               0x00000020);        // recipientRow exists, but it is treated as if the corresponding recipient is deleted from meeting
-define('recipOriginal',                         0x00000100);        // recipient is an original Attendee
-define('recipReserved',                         0x00000200);
+define('recipSendable'                           ,0x00000001);    // sendable attendee.
+define('recipOrganizer'                          ,0x00000002);    // meeting organizer
+define('recipExceptionalResponse'                ,0x00000010);    // attendee gave a response for the exception
+define('recipExceptionalDeleted'                 ,0x00000020);    // recipientRow exists, but it is treated as if the corresponding recipient is deleted from meeting
+define('recipOriginal'                           ,0x00000100);    // recipient is an original Attendee
+define('recipReserved'                           ,0x00000200);
 
 /* Flags which indicates type of Meeting Object */
-define('mtgEmpty',                              0x00000000);        // Unspecified.
-define('mtgRequest',                            0x00000001);        // Initial meeting request.
-define('mtgFull',                               0x00010000);        // Full update.
-define('mtgInfo',                               0x00020000);        // Informational update.
-define('mtgOutOfDate',                          0x00080000);        // A newer Meeting Request object or Meeting Update object was received after this one.
-define('mtgDelegatorCopy',                      0x00100000);        // This is set on the delegator's copy when a delegate will handle meeting-related objects.
+define('mtgEmpty'                                ,0x00000000);    // Unspecified.
+define('mtgRequest'                              ,0x00000001);    // Initial meeting request.
+define('mtgFull'                                 ,0x00010000);    // Full update.
+define('mtgInfo'                                 ,0x00020000);    // Informational update.
+define('mtgOutOfDate'                            ,0x00080000);    // A newer Meeting Request object or Meeting Update object was received after this one.
+define('mtgDelegatorCopy'                        ,0x00100000);    // This is set on the delegator's copy when a delegate will handle meeting-related objects.
 
-define('MAPI_ONE_OFF_UNICODE',                  0x8000);                // the flag that defines whether the embedded strings are Unicode in one off entryids.
-define('MAPI_ONE_OFF_NO_RICH_INFO',             0x0001);                // the flag that specifies whether the recipient gets TNEF or not.
+define('MAPI_ONE_OFF_UNICODE'                    ,0x8000);        // the flag that defines whether the embedded strings are Unicode in one off entryids.
+define('MAPI_ONE_OFF_NO_RICH_INFO'               ,0x0001);        // the flag that specifies whether the recipient gets TNEF or not.
 
-// MAPI notifications
-define('fnevObjectCreated',                     0x00000004);
-define('fnevObjectDeleted',                     0x00000008);
-define('fnevObjectModified',                    0x00000010);
-define('fnevObjectMoved',                       0x00000020);
-define('fnevObjectCopied',                      0x00000040);
-
+/* Mask flags for mapi_msgstore_advise */
+define('fnevCriticalError'                       ,0x00000001);
+define('fnevNewMail'                             ,0x00000002);
+define('fnevObjectCreated'                       ,0x00000004);
+define('fnevObjectDeleted'                       ,0x00000008);
+define('fnevObjectModified'                      ,0x00000010);
+define('fnevObjectMoved'                         ,0x00000020);
+define('fnevObjectCopied'                        ,0x00000040);
+define('fnevSearchComplete'                      ,0x00000080);
+define('fnevTableModified'                       ,0x00000100);
+define('fnevStatusObjectModified'                ,0x00000200);
+define('fnevReservedForMapi'                     ,0x40000000);
+define('fnevExtended'                            ,0x80000000);
 
 ?>

@@ -199,6 +199,11 @@ class PHPWrapper {
         $entryid = mapi_msgstore_entryidfromsourcekey($this->store, $sourcekey);
         $mapifolder = mapi_msgstore_openentry($this->store, $entryid);
         $folder = $this->mapiprovider->GetFolder($mapifolder);
+
+        // do not import folder if there is something "wrong" with it
+        if ($folder === false)
+            return 0;
+
         $this->importer->ImportFolderChange($folder);
         return 0;
     }

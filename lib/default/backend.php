@@ -119,6 +119,22 @@ abstract class Backend implements IBackend {
      */
 
     /**
+     * Deletes all contents of the specified folder.
+     * This is generally used to empty the trash (wastebasked), but could also be used on any
+     * other folder.
+     *
+     * @param string        $folderid
+     * @param boolean       $includeSubfolders      (opt) also delete sub folders, default true
+     *
+     * @access public
+     * @return boolean
+     * @throws StatusException
+     */
+    public function EmptyFolder($folderid, $includeSubfolders = true) {
+        return false;
+    }
+
+    /**
      * Indicates if the backend has a ChangesSink.
      * A sink is an active notification mechanism which does not need polling.
      *
@@ -182,7 +198,7 @@ abstract class Backend implements IBackend {
      * While permament storage is bound to the device and user, state related data works linked
      * to the regular states (and its counters).
      *
-     * Both consist of a simple array. The backend can decide what to save in it.
+     * Both consist of a StateObject, while the backend can decide what to save in it.
      *
      * Before using $this->permanentStorage and $this->stateStorage the initilize methods have to be
      * called from the backend.

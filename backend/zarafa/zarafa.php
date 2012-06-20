@@ -103,6 +103,8 @@ class BackendZarafa implements IBackend, ISearchProvider {
         $this->changesSinkFolders = array();
         $this->changesSinkStores = array();
         $this->wastebasket = false;
+
+        ZLog::Write(LOGLEVEL_DEBUG, sprintf("BackendZarafa using PHP-MAPI version: %s", phpversion("mapi")));
     }
 
     /**
@@ -162,6 +164,10 @@ class BackendZarafa implements IBackend, ISearchProvider {
                 $this->session = @mapi_logon_zarafa($user, $pass, MAPI_SERVER);
                 $this->notifications = false;
             }
+
+            if (mapi_last_hresult())
+                ZLog::Write(LOGLEVEL_ERROR, sprintf("ZarafaBackend->Logon(): login failed with error code: 0x%X", mapi_last_hresult()));
+
         }
         catch (MAPIException $ex) {
             throw new AuthenticationRequiredException($ex->getDisplayMessage());
@@ -433,10 +439,6 @@ class BackendZarafa implements IBackend, ISearchProvider {
             $ab = mapi_openaddressbook($this->session);
             mapi_inetmapi_imtomapi($this->session, $this->store, $ab, $mapimessage, $sm->mime, array());
 
-            mapi_setprops($mapimessage, $mapiprops);
-
-            $this->addRecipients($message->headers, $mapimessage);
-
             // Delete the PR_SENT_REPRESENTING_* properties because some android devices
             // do not send neither From nor Sender header causing empty PR_SENT_REPRESENTING_NAME and
             // PR_SENT_REPRESENTING_EMAIL_ADDRESS properties and "broken" PR_SENT_REPRESENTING_ENTRYID
@@ -446,6 +448,42 @@ class BackendZarafa implements IBackend, ISearchProvider {
                 array(  $sendMailProps["sentrepresentingname"], $sendMailProps["sentrepresentingemail"], $sendMailProps["representingentryid"],
                         $sendMailProps["sentrepresentingaddt"], $sendMailProps["sentrepresentinsrchk"]));
 
+            if(isset($sm->source->itemid) && $sm->source->itemid) {
+                $entryid = mapi_msgstore_entryidfromsourcekey($this->store, hex2bin($sm->source->folderid), hex2bin($sm->source->itemid));
+                if ($entryid)
+                    $fwmessage = mapi_msgstore_openentry($this->store, $entryid);
+
+                if(!isset($fwmessage) || !$fwmessage)
+                    throw new StatusException(sprintf("ZarafaBackend->SendMail(): Could not open message id '%s' in folder id '%s' to be replied/forwarded: 0x%X", $sm->source->itemid, $sm->source->folderid, mapi_last_hresult()), SYNC_COMMONSTATUS_ITEMNOTFOUND);
+
+                //update icon when forwarding or replying message
+                if ($sm->forwardflag) mapi_setprops($fwmessage, array(PR_ICON_INDEX=>262));
+                elseif ($sm->replyflag) mapi_setprops($fwmessage, array(PR_ICON_INDEX=>261));
+                mapi_savechanges($fwmessage);
+
+                // only attach the original message if the mobile does not send it itself
+                if (!isset($sm->replacemime)) {
+                    // get message's body in order to append forward or reply text
+                    $body = MAPIUtils::readPropStream($mapimessage, PR_BODY);
+                    $bodyHtml = MAPIUtils::readPropStream($mapimessage, PR_HTML);
+                    if($sm->forwardflag) {
+                        // attach the original attachments to the outgoing message
+                        $this->copyAttachments($mapimessage, $fwmessage);
+                    }
+
+                    if (strlen($body) > 0) {
+                        $fwbody = MAPIUtils::readPropStream($fwmessage, PR_BODY);
+                        $mapiprops[$sendMailProps["body"]] = $body."\r\n\r\n".$fwbody;
+                    }
+
+                    if (strlen($bodyHtml) > 0) {
+                        $fwbodyHtml = MAPIUtils::readPropStream($fwmessage, PR_HTML);
+                        $mapiprops[$sendMailProps["html"]] = $bodyHtml."<br><br>".$fwbodyHtml;
+                    }
+                }
+            }
+
+            mapi_setprops($mapimessage, $mapiprops);
             mapi_message_savechanges($mapimessage);
             mapi_message_submitmessage($mapimessage);
             $hr = mapi_last_hresult();
@@ -574,48 +612,15 @@ class BackendZarafa implements IBackend, ISearchProvider {
 
             // only attach the original message if the mobile does not send it itself
             if (!isset($sm->replacemime)) {
-                $stream = mapi_openproperty($fwmessage, PR_BODY, IID_IStream, 0, 0);
-                $fwbody = "";
-
-                while(1) {
-                    $data = mapi_stream_read($stream, 1024);
-                    if(strlen($data) == 0)
-                        break;
-                    $fwbody .= $data;
-                }
-
-                $stream = mapi_openproperty($fwmessage, PR_HTML, IID_IStream, 0, 0);
-                $fwbody_html = "";
-
-                while(1) {
-                    $data = mapi_stream_read($stream, 1024);
-                    if(strlen($data) == 0)
-                        break;
-                    $fwbody_html .= $data;
-                }
+                $fwbody = MAPIUtils::readPropStream($fwmessage, PR_BODY);
+                $fwbodyHtml = MAPIUtils::readPropStream($fwmessage, PR_HTML);
 
                 if($sm->forwardflag) {
                     // During a forward, we have to add the forward header ourselves. This is because
                     // normally the forwarded message is added as an attachment. However, we don't want this
                     // because it would be rather complicated to copy over the entire original message due
                     // to the lack of IMessage::CopyTo ..
-
-                    $fwmessageprops = mapi_getprops($fwmessage, array(PR_SENT_REPRESENTING_NAME, PR_DISPLAY_TO, PR_DISPLAY_CC, PR_SUBJECT, PR_CLIENT_SUBMIT_TIME));
-
-                    $fwheader = "\r\n\r\n";
-                    $fwheader .= "-----Original Message-----\r\n";
-                    if(isset($fwmessageprops[PR_SENT_REPRESENTING_NAME]))
-                        $fwheader .= "From: " . $fwmessageprops[PR_SENT_REPRESENTING_NAME] . "\r\n";
-                    if(isset($fwmessageprops[PR_DISPLAY_TO]) && strlen($fwmessageprops[PR_DISPLAY_TO]) > 0)
-                        $fwheader .= "To: " . $fwmessageprops[PR_DISPLAY_TO] . "\r\n";
-                    if(isset($fwmessageprops[PR_DISPLAY_CC]) && strlen($fwmessageprops[PR_DISPLAY_CC]) > 0)
-                        $fwheader .= "Cc: " . $fwmessageprops[PR_DISPLAY_CC] . "\r\n";
-                    if(isset($fwmessageprops[PR_CLIENT_SUBMIT_TIME]))
-                        $fwheader .= "Sent: " . strftime("%x %X", $fwmessageprops[PR_CLIENT_SUBMIT_TIME]) . "\r\n";
-                    if(isset($fwmessageprops[PR_SUBJECT]))
-                        $fwheader .= "Subject: " . $fwmessageprops[PR_SUBJECT] . "\r\n";
-                    $fwheader .= "\r\n";
-
+                    $fwheader = $this->getForwardHeaders($fwmessage);
 
                     // add fwheader to body and body_html
                     $body .= $fwheader;
@@ -623,44 +628,14 @@ class BackendZarafa implements IBackend, ISearchProvider {
                         $body_html .= str_ireplace("\r\n", "<br>", $fwheader);
 
                     // attach the original attachments to the outgoing message
-                    $attachtable = mapi_message_getattachmenttable($fwmessage);
-                    $rows = mapi_table_queryallrows($attachtable, array(PR_ATTACH_NUM));
-
-                    foreach($rows as $row) {
-                        if(isset($row[PR_ATTACH_NUM])) {
-                            $attach = mapi_message_openattach($fwmessage, $row[PR_ATTACH_NUM]);
-
-                            $newattach = mapi_message_createattach($mapimessage);
-
-                            // Copy all attachments from old to new attachment
-                            $attachprops = mapi_getprops($attach);
-                            mapi_setprops($newattach, $attachprops);
-
-                            if(isset($attachprops[mapi_prop_tag(PT_ERROR, mapi_prop_id(PR_ATTACH_DATA_BIN))])) {
-                                // Data is in a stream
-                                $srcstream = mapi_openpropertytostream($attach, PR_ATTACH_DATA_BIN);
-                                $dststream = mapi_openpropertytostream($newattach, PR_ATTACH_DATA_BIN, MAPI_MODIFY | MAPI_CREATE);
-
-                                while(1) {
-                                    $data = mapi_stream_read($srcstream, 4096);
-                                    if(strlen($data) == 0)
-                                        break;
-
-                                    mapi_stream_write($dststream, $data);
-                                }
-
-                                mapi_stream_commit($dststream);
-                            }
-                            mapi_savechanges($newattach);
-                        }
-                    }
+                    $this->copyAttachments($mapimessage, $fwmessage);
                 }
 
                 if(strlen($body) > 0)
                     $body .= $fwbody;
 
                 if (strlen($body_html) > 0)
-                    $body_html .= $fwbody_html;
+                    $body_html .= $fwbodyHtml;
             }
         }
 
@@ -787,6 +762,42 @@ class BackendZarafa implements IBackend, ISearchProvider {
         return $attachment;
     }
 
+
+    /**
+     * Deletes all contents of the specified folder.
+     * This is generally used to empty the trash (wastebasked), but could also be used on any
+     * other folder.
+     *
+     * @param string        $folderid
+     * @param boolean       $includeSubfolders      (opt) also delete sub folders, default true
+     *
+     * @access public
+     * @return boolean
+     * @throws StatusException
+     */
+    public function EmptyFolder($folderid, $includeSubfolders = true) {
+        $folderentryid = mapi_msgstore_entryidfromsourcekey($this->store, hex2bin($folderid));
+        if (!$folderentryid)
+            throw new StatusException(sprintf("BackendZarafa->EmptyFolder('%s','%s'): Error, unable to open folder (no entry id)", $folderid, Utils::PrintAsString($includeSubfolders)), SYNC_ITEMOPERATIONSSTATUS_SERVERERROR);
+        $folder = mapi_msgstore_openentry($this->store, $folderentryid);
+
+        if (!$folder)
+            throw new StatusException(sprintf("BackendZarafa->EmptyFolder('%s','%s'): Error, unable to open parent folder (open entry)", $folderid, Utils::PrintAsString($includeSubfolders)), SYNC_ITEMOPERATIONSSTATUS_SERVERERROR);
+
+        $flags = 0;
+        if ($includeSubfolders)
+            $flags = DEL_ASSOCIATED;
+
+        ZLog::Write(LOGLEVEL_DEBUG, sprintf("BackendZarafa->EmptyFolder('%s','%s'): emptying folder",$folderid, Utils::PrintAsString($includeSubfolders)));
+
+        // empty folder!
+        mapi_folder_emptyfolder($folder, $flags);
+        if (mapi_last_hresult())
+            throw new StatusException(sprintf("BackendZarafa->EmptyFolder('%s','%s'): Error, mapi_folder_emptyfolder() failed: 0x%X", $folderid, Utils::PrintAsString($includeSubfolders), mapi_last_hresult()), SYNC_ITEMOPERATIONSSTATUS_SERVERERROR);
+
+        return true;
+    }
+
     /**
      * Processes a response to a meeting request.
      * CalendarID is a reference and has to be set if a new calendar item is created
@@ -802,11 +813,12 @@ class BackendZarafa implements IBackend, ISearchProvider {
     public function MeetingResponse($requestid, $folderid, $response) {
         // Use standard meeting response code to process meeting request
         $reqentryid = mapi_msgstore_entryidfromsourcekey($this->store, hex2bin($folderid), hex2bin($requestid));
-        if ($reqentryid)
-            $mapimessage = mapi_msgstore_openentry($this->store, $reqentryid);
+        if (!$reqentryid)
+            throw new StatusException(sprintf("BackendZarafa->MeetingResponse('%s', '%s', '%s'): Error, unable to entryid of the message 0x%X", $requestid, $folderid, $response, mapi_last_hresult()), SYNC_MEETRESPSTATUS_INVALIDMEETREQ);
 
+        $mapimessage = mapi_msgstore_openentry($this->store, $reqentryid);
         if(!$mapimessage)
-            throw new StatusException(sprintf("BackendZarafa->MeetingResponse('%s','%s', '%s'): Error, unable to open request message for response 0x%X", $requestid, $folderid, $response, mapi_last_hresult()), SYNC_MEETRESPSTATUS_MAILBOXERROR);
+            throw new StatusException(sprintf("BackendZarafa->MeetingResponse('%s','%s', '%s'): Error, unable to open request message for response 0x%X", $requestid, $folderid, $response, mapi_last_hresult()), SYNC_MEETRESPSTATUS_INVALIDMEETREQ);
 
         $meetingrequest = new Meetingrequest($this->store, $mapimessage);
 
@@ -900,7 +912,7 @@ class BackendZarafa implements IBackend, ISearchProvider {
     /**
      * The folder should be considered by the sink.
      * Folders which were not initialized should not result in a notification
-     * of IBacken->ChangesSink().
+     * of IBackend->ChangesSink().
      *
      * @param string        $folderid
      *
@@ -917,7 +929,7 @@ class BackendZarafa implements IBackend, ISearchProvider {
         // add entryid to the monitored folders
         $this->changesSinkFolders[$entryid] = $folderid;
 
-        // check if this store is already monitores, else advise it
+        // check if this store is already monitored, else advise it
         if (!in_array($this->store, $this->changesSinkStores)) {
             mapi_msgstore_advise($this->store, null, fnevObjectModified | fnevObjectCreated | fnevObjectMoved | fnevObjectDeleted, $this->changesSink);
             $this->changesSinkStores[] = $this->store;
@@ -946,7 +958,7 @@ class BackendZarafa implements IBackend, ISearchProvider {
                 $notifications[] = $this->changesSinkFolders[$sinknotif['parentid']];
             }
             // deletes and moves
-            else if (isset($sinknotif['oldparentid']) && array_key_exists($sinknotif['oldparentid'], $this->changesSinkFolders)) {
+            if (isset($sinknotif['oldparentid']) && array_key_exists($sinknotif['oldparentid'], $this->changesSinkFolders)) {
                 $notifications[] = $this->changesSinkFolders[$sinknotif['oldparentid']];
             }
         }
@@ -1038,9 +1050,8 @@ class BackendZarafa implements IBackend, ISearchProvider {
         $querycnt = mapi_table_getrowcount($table);
         //do not return more results as requested in range
         $querylimit = (($rangeend + 1) < $querycnt) ? ($rangeend + 1) : $querycnt;
-        $items['range'] = $rangestart.'-'.($querylimit - 1);
+        $items['range'] = ($querylimit > 0) ? $rangestart.'-'.($querylimit - 1) : '0-0';
         $items['searchtotal'] = $querycnt;
-
         if ($querycnt > 0)
             $abentries = mapi_table_queryrows($table, array(PR_ACCOUNT, PR_DISPLAY_NAME, PR_SMTP_ADDRESS, PR_BUSINESS_TELEPHONE_NUMBER, PR_GIVEN_NAME, PR_SURNAME, PR_MOBILE_TELEPHONE_NUMBER, PR_HOME_TELEPHONE_NUMBER, PR_TITLE, PR_COMPANY_NAME, PR_OFFICE_LOCATION), $rangestart, $querylimit);
 
@@ -1095,13 +1106,28 @@ class BackendZarafa implements IBackend, ISearchProvider {
      */
     public function GetMailboxSearchResults($cpo) {
         $searchFolder = $this->getSearchFolder();
-        $searchRestriction = $this->getSearchRestriction($cpo->GetSearchFreeText());
+        $searchRestriction = $this->getSearchRestriction($cpo);
         $searchRange = explode('-', $cpo->GetSearchRange());
         $searchFolderId = $cpo->GetSearchFolderid();
+        $searchFolders = array();
+        // search only in required folders
+        if (!empty($searchFolderId)) {
+            $searchFolderEntryId = mapi_msgstore_entryidfromsourcekey($this->store, hex2bin($searchFolderId));
+            $searchFolders[] = $searchFolderEntryId;
+        }
+        // if no folder was required then search in the entire store
+        else {
+            $tmp = mapi_getprops($this->store, array(PR_ENTRYID,PR_DISPLAY_NAME,PR_IPM_SUBTREE_ENTRYID));
+            $searchFolders[] = $tmp[PR_IPM_SUBTREE_ENTRYID];
+        }
         $items = array();
+        $flags = 0;
+        // if subfolders are required, do a recursive search
+        if ($cpo->GetSearchDeepTraversal()) {
+            $flags |= SEARCH_RECURSIVE;
+        }
 
-        $tmp = mapi_getprops($this->store, array(PR_ENTRYID,PR_DISPLAY_NAME,PR_IPM_SUBTREE_ENTRYID));
-        mapi_folder_setsearchcriteria($searchFolder, $searchRestriction, array($tmp[PR_IPM_SUBTREE_ENTRYID]), RECURSIVE_SEARCH);
+        mapi_folder_setsearchcriteria($searchFolder, $searchRestriction, $searchFolders, $flags);
 
         $table = mapi_folder_getcontentstable($searchFolder);
         $searchStart = time();
@@ -1120,12 +1146,52 @@ class BackendZarafa implements IBackend, ISearchProvider {
 
         $cnt = count($rows);
         $items['searchtotal'] = $cnt;
+        $items["range"] = $cpo->GetSearchRange();
         for ($i = 0; $i < $cnt; $i++) {
             $items[$i]['class'] = 'Email';
             $items[$i]['longid'] = bin2hex($rows[$i][PR_PARENT_SOURCE_KEY]) . ":" . bin2hex($rows[$i][PR_SOURCE_KEY]);
             $items[$i]['folderid'] = bin2hex($rows[$i][PR_PARENT_SOURCE_KEY]);
         }
         return $items;
+    }
+
+    /**
+    * Terminates a search for a given PID
+    *
+    * @param int $pid
+    *
+    * @return boolean
+    */
+    public function TerminateSearch($pid) {
+        ZLog::Write(LOGLEVEL_DEBUG, sprintf("ZarafaBackend->TerminateSearch(): terminating search for pid %d", $pid));
+        $storeProps = mapi_getprops($this->store, array(PR_STORE_SUPPORT_MASK, PR_FINDER_ENTRYID));
+        if (($storeProps[PR_STORE_SUPPORT_MASK] & STORE_SEARCH_OK) != STORE_SEARCH_OK) {
+            ZLog::Write(LOGLEVEL_WARN, "Store doesn't support search folders. Public store doesn't have FINDER_ROOT folder");
+            return false;
+        }
+
+        $finderfolder = mapi_msgstore_openentry($this->store, $storeProps[PR_FINDER_ENTRYID]);
+        if(mapi_last_hresult() != NOERROR) {
+            ZLog::Write(LOGLEVEL_WARN, sprintf("Unable to open search folder (0x%X)", mapi_last_hresult()));
+            return false;
+        }
+
+        $hierarchytable = mapi_folder_gethierarchytable($finderfolder);
+        mapi_table_restrict($hierarchytable,
+            array(RES_CONTENT,
+                array(
+                    FUZZYLEVEL      => FL_PREFIX,
+                    ULPROPTAG       => PR_DISPLAY_NAME,
+                    VALUE           => array(PR_DISPLAY_NAME=>"Z-Push Search Folder ".$pid)
+                )
+            ),
+            TBL_BATCH);
+
+        $folders = mapi_table_queryallrows($hierarchytable, array(PR_ENTRYID, PR_DISPLAY_NAME, PR_LAST_MODIFICATION_TIME));
+        foreach($folders as $folder) {
+            mapi_folder_deletefolder($finderfolder, $folder[PR_ENTRYID]);
+        }
+        return true;
     }
 
     /**
@@ -1400,7 +1466,6 @@ class BackendZarafa implements IBackend, ISearchProvider {
     /**
      * Adds the recipients to an email message from a RFC822 message headers.
      *
-     * Enter description here ...
      * @param MIMEMessageHeader $headers
      * @param MAPIMessage $mapimessage
      */
@@ -1437,6 +1502,74 @@ class BackendZarafa implements IBackend, ISearchProvider {
         }
 
         mapi_message_modifyrecipients($mapimessage, 0, $recips);
+    }
+
+    /**
+     * Get headers for the forwarded message
+     *
+     * @param MAPIMessage $fwmessage
+     *
+     * @return string
+     */
+    private function getForwardHeaders($message) {
+        $messageprops = mapi_getprops($message, array(PR_SENT_REPRESENTING_NAME, PR_DISPLAY_TO, PR_DISPLAY_CC, PR_SUBJECT, PR_CLIENT_SUBMIT_TIME));
+
+        $fwheader = "\r\n\r\n";
+        $fwheader .= "-----Original Message-----\r\n";
+        if(isset($messageprops[PR_SENT_REPRESENTING_NAME]))
+            $fwheader .= "From: " . $messageprops[PR_SENT_REPRESENTING_NAME] . "\r\n";
+        if(isset($messageprops[PR_DISPLAY_TO]) && strlen($messageprops[PR_DISPLAY_TO]) > 0)
+            $fwheader .= "To: " . $messageprops[PR_DISPLAY_TO] . "\r\n";
+        if(isset($messageprops[PR_DISPLAY_CC]) && strlen($messageprops[PR_DISPLAY_CC]) > 0)
+            $fwheader .= "Cc: " . $messageprops[PR_DISPLAY_CC] . "\r\n";
+        if(isset($messageprops[PR_CLIENT_SUBMIT_TIME]))
+            $fwheader .= "Sent: " . strftime("%x %X", $messageprops[PR_CLIENT_SUBMIT_TIME]) . "\r\n";
+        if(isset($messageprops[PR_SUBJECT]))
+            $fwheader .= "Subject: " . $messageprops[PR_SUBJECT] . "\r\n";
+
+        return $fwheader."\r\n";
+    }
+
+    /**
+     * Copies attachments from one message to another.
+     *
+     * @param MAPIMessage $toMessage
+     * @param MAPIMessage $fromMessage
+     *
+     * @return void
+     */
+    private function copyAttachments(&$toMessage, $fromMessage) {
+        $attachtable = mapi_message_getattachmenttable($fromMessage);
+        $rows = mapi_table_queryallrows($attachtable, array(PR_ATTACH_NUM));
+
+        foreach($rows as $row) {
+            if(isset($row[PR_ATTACH_NUM])) {
+                $attach = mapi_message_openattach($fromMessage, $row[PR_ATTACH_NUM]);
+
+                $newattach = mapi_message_createattach($toMessage);
+
+                // Copy all attachments from old to new attachment
+                $attachprops = mapi_getprops($attach);
+                mapi_setprops($newattach, $attachprops);
+
+                if(isset($attachprops[mapi_prop_tag(PT_ERROR, mapi_prop_id(PR_ATTACH_DATA_BIN))])) {
+                    // Data is in a stream
+                    $srcstream = mapi_openpropertytostream($attach, PR_ATTACH_DATA_BIN);
+                    $dststream = mapi_openpropertytostream($newattach, PR_ATTACH_DATA_BIN, MAPI_MODIFY | MAPI_CREATE);
+
+                    while(1) {
+                        $data = mapi_stream_read($srcstream, 4096);
+                        if(strlen($data) == 0)
+                            break;
+
+                        mapi_stream_write($dststream, $data);
+                    }
+
+                    mapi_stream_commit($dststream);
+                }
+                mapi_savechanges($newattach);
+            }
+        }
     }
 
    /**
@@ -1500,7 +1633,7 @@ class BackendZarafa implements IBackend, ISearchProvider {
      * @return mapiFolderObject
      */
     private function createSearchFolder($searchFolderRoot) {
-        $folderName = "Z-Push Search Folder";
+        $folderName = "Z-Push Search Folder ".@getmypid();
         $searchFolders = mapi_folder_gethierarchytable($searchFolderRoot);
         $restriction = array(
             RES_CONTENT,
@@ -1523,74 +1656,44 @@ class BackendZarafa implements IBackend, ISearchProvider {
     /**
      * Creates a search restriction
      *
-     * @param string $searchText
+     * @param ContentParameter $cpo
      * @return array
      */
-    private function getSearchRestriction($searchText) {
-        // only search emails
-        $mapiquery =
-//             array (RES_AND,
-//                 array(
-//                     array (RES_AND,
-//                          array(
-//                             array(RES_EXIST, array(ULPROPTAG => PR_MESSAGE_CLASS)),
-//                             array(RES_CONTENT, array(FUZZYLEVEL => (FL_SUBSTRING | FL_IGNORECASE), ULPROPTAG => PR_MESSAGE_CLASS, VALUE => array(PR_MESSAGE_CLASS => "IPM.Note"))),
-//                         ),
-//                     ), // RES_AND
-//                 ),
-                array (RES_OR,
-                    array (
-                        array (RES_AND,
-                             array(
-                                array(RES_EXIST, array(ULPROPTAG => PR_BODY)),
-                                array(RES_CONTENT, array(FUZZYLEVEL => (FL_SUBSTRING | FL_IGNORECASE), ULPROPTAG => PR_BODY, VALUE => array(PR_BODY => u2w($searchText)))),
-                            ),
-                        ), // RES_AND
-                        array (RES_AND,
-                            array(
-                                array(RES_EXIST, array(ULPROPTAG => PR_SUBJECT)),
-                                array(RES_CONTENT, array(FUZZYLEVEL => (FL_SUBSTRING | FL_IGNORECASE), ULPROPTAG => PR_SUBJECT, VALUE => array(PR_SUBJECT => u2w($searchText)))),
-                            ),
-                        ), // RES_AND
-                        array (RES_AND,
-                            array(
-                                array(RES_EXIST, array(ULPROPTAG => PR_DISPLAY_TO)),
-                                array(RES_CONTENT, array(FUZZYLEVEL => (FL_SUBSTRING | FL_IGNORECASE), ULPROPTAG => PR_DISPLAY_TO, VALUE => array(PR_DISPLAY_TO => u2w($searchText)))),
-                            ),
-                        ), // RES_AND
-                        array (RES_AND,
-                            array(
-                                array(RES_EXIST, array(ULPROPTAG => PR_DISPLAY_CC)),
-                                array(RES_CONTENT, array(FUZZYLEVEL => (FL_SUBSTRING | FL_IGNORECASE), ULPROPTAG => PR_DISPLAY_CC, VALUE => array(PR_DISPLAY_CC => u2w($searchText)))),
-                            ),
-                        ), // RES_AND
-                        array (RES_AND,
-                            array(
-                                array(RES_EXIST, array(ULPROPTAG => PR_SENDER_NAME)),
-                                array(RES_CONTENT, array(FUZZYLEVEL => (FL_SUBSTRING | FL_IGNORECASE), ULPROPTAG => PR_SENDER_NAME, VALUE => array(PR_SENDER_NAME => u2w($searchText)))),
-                            ),
-                        ), // RES_AND
-                        array (RES_AND,
-                            array(
-                                array(RES_EXIST, array(ULPROPTAG => PR_SENDER_EMAIL_ADDRESS)),
-                                array(RES_CONTENT, array(FUZZYLEVEL => (FL_SUBSTRING | FL_IGNORECASE), ULPROPTAG => PR_SENDER_EMAIL_ADDRESS, VALUE => array(PR_SENDER_EMAIL_ADDRESS => u2w($searchText)))),
-                            ),
-                        ), // RES_AND
-                        array (RES_AND,
-                            array(
-                                array(RES_EXIST, array(ULPROPTAG => PR_SENT_REPRESENTING_NAME)),
-                                array(RES_CONTENT, array(FUZZYLEVEL => (FL_SUBSTRING | FL_IGNORECASE), ULPROPTAG => PR_SENT_REPRESENTING_NAME, VALUE => array(PR_SENT_REPRESENTING_NAME => u2w($searchText)))),
-                            ),
-                        ), // RES_AND
-                        array (RES_AND,
-                            array(
-                                array(RES_EXIST, array(ULPROPTAG => PR_SENT_REPRESENTING_EMAIL_ADDRESS)),
-                                array(RES_CONTENT, array(FUZZYLEVEL => (FL_SUBSTRING | FL_IGNORECASE), ULPROPTAG => PR_SENT_REPRESENTING_EMAIL_ADDRESS, VALUE => array(PR_SENT_REPRESENTING_EMAIL_ADDRESS => u2w($searchText)))),
-                            ),
-                        ), // RES_AND
+    private function getSearchRestriction($cpo) {
+        $searchText = $cpo->GetSearchFreeText();
+
+        $searchGreater = strtotime($cpo->GetSearchValueGreater());
+        $searchLess = strtotime($cpo->GetSearchValueLess());
+
+        // split the search on whitespache and look for every word
+        $searchText = preg_split("/\W+/", $searchText);
+        $searchProps = array(PR_BODY, PR_SUBJECT, PR_DISPLAY_TO, PR_DISPLAY_CC, PR_SENDER_NAME, PR_SENDER_EMAIL_ADDRESS, PR_SENT_REPRESENTING_NAME, PR_SENT_REPRESENTING_EMAIL_ADDRESS);
+        $resAnd = array();
+        foreach($searchText as $term) {
+            $resOr = array();
+
+            foreach($searchProps as $property) {
+                array_push($resOr,
+                    array(RES_CONTENT,
+                        array(
+                            FUZZYLEVEL => FL_SUBSTRING|FL_IGNORECASE,
+                            ULPROPTAG => $property,
+                            VALUE => u2w($term)
+                        )
                     )
-//                 ) // RES_OR
-            );// RES_AND
+                );
+            }
+            array_push($resAnd, array(RES_OR, $resOr));
+        }
+
+        // add time range restrictions
+        if ($searchGreater) {
+            array_push($resAnd, array(RES_PROPERTY, array(RELOP => RELOP_GE, ULPROPTAG => PR_MESSAGE_DELIVERY_TIME, VALUE => array(PR_MESSAGE_DELIVERY_TIME => $searchGreater)))); // RES_AND;
+        }
+        if ($searchLess) {
+            array_push($resAnd, array(RES_PROPERTY, array(RELOP => RELOP_LE, ULPROPTAG => PR_MESSAGE_DELIVERY_TIME, VALUE => array(PR_MESSAGE_DELIVERY_TIME => $searchLess))));
+        }
+        $mapiquery = array(RES_AND, $resAnd);
 
         return $mapiquery;
     }

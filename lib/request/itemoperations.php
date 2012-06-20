@@ -166,6 +166,25 @@ class ItemOperations extends RequestProcessor {
             }
         }
 
+        if ($efc) {
+            if(self::$decoder->getElementStartTag(SYNC_FOLDERID)) {
+                $folderid = self::$decoder->getElementContent();
+                if(!self::$decoder->getElementEndTag())
+                    return false;//SYNC_FOLDERID
+            }
+            if(self::$decoder->getElementStartTag(SYNC_ITEMOPERATIONS_OPTIONS)) {
+                if(self::$decoder->getElementStartTag(SYNC_ITEMOPERATIONS_DELETESUBFOLDERS)) {
+                    $deletesubfolders = true;
+                    if (($dsf = self::$decoder->getElementContent()) !== false) {
+                        $deletesubfolders = (boolean)$dsf;
+                        if(!self::$decoder->getElementEndTag())
+                            return false;
+                    }
+                }
+                self::$decoder->getElementEndTag();
+            }
+        }
+
         //TODO EmptyFolderContents
         //TODO move
 
@@ -184,60 +203,96 @@ class ItemOperations extends RequestProcessor {
         self::$encoder->endTag();//SYNC_ITEMOPERATIONS_STATUS
 
         self::$encoder->startTag(SYNC_ITEMOPERATIONS_RESPONSE);
-        self::$encoder->startTag(SYNC_ITEMOPERATIONS_FETCH);
 
-            self::$encoder->startTag(SYNC_ITEMOPERATIONS_STATUS);
-            self::$encoder->content($status);
-            self::$encoder->endTag();//SYNC_ITEMOPERATIONS_STATUS
+        // fetch response
+        if ($fetch) {
+            self::$encoder->startTag(SYNC_ITEMOPERATIONS_FETCH);
 
-            if (isset($folderid) && isset($serverid)) {
-                self::$encoder->startTag(SYNC_FOLDERID);
-                self::$encoder->content($folderid);
-                self::$encoder->endTag(); // end SYNC_FOLDERID
+                self::$encoder->startTag(SYNC_ITEMOPERATIONS_STATUS);
+                self::$encoder->content($status);
+                self::$encoder->endTag();//SYNC_ITEMOPERATIONS_STATUS
 
-                self::$encoder->startTag(SYNC_SERVERENTRYID);
-                self::$encoder->content($serverid);
-                self::$encoder->endTag(); // end SYNC_SERVERENTRYID
+                if (isset($folderid) && isset($serverid)) {
+                    self::$encoder->startTag(SYNC_FOLDERID);
+                    self::$encoder->content($folderid);
+                    self::$encoder->endTag(); // end SYNC_FOLDERID
 
-                self::$encoder->startTag(SYNC_FOLDERTYPE);
-                self::$encoder->content("Email");
-                self::$encoder->endTag();
+                    self::$encoder->startTag(SYNC_SERVERENTRYID);
+                    self::$encoder->content($serverid);
+                    self::$encoder->endTag(); // end SYNC_SERVERENTRYID
 
-                $data = self::$backend->Fetch($folderid, $serverid, $collection["cpo"]);
+                    self::$encoder->startTag(SYNC_FOLDERTYPE);
+                    self::$encoder->content("Email");
+                    self::$encoder->endTag();
+
+                    $data = self::$backend->Fetch($folderid, $serverid, $collection["cpo"]);
+                }
+
+                if (isset($longid)) {
+                    self::$encoder->startTag(SYNC_SEARCH_LONGID);
+                    self::$encoder->content($longid);
+                    self::$encoder->endTag(); // end SYNC_FOLDERID
+
+                    self::$encoder->startTag(SYNC_FOLDERTYPE);
+                    self::$encoder->content("Email");
+                    self::$encoder->endTag();
+
+                    $tmp = explode(":", $longid);
+                    $data = self::$backend->Fetch($tmp[0], $tmp[1], $collection["cpo"]);
+                }
+
+                if (isset($filereference)) {
+                    self::$encoder->startTag(SYNC_AIRSYNCBASE_FILEREFERENCE);
+                    self::$encoder->content($filereference);
+                    self::$encoder->endTag(); // end SYNC_AIRSYNCBASE_FILEREFERENCE
+
+                    $data = self::$backend->GetAttachmentData($filereference);
+                }
+
+                //TODO put it in try catch block
+
+                if (isset($data)) {
+                    self::$encoder->startTag(SYNC_ITEMOPERATIONS_PROPERTIES);
+                    $data->Encode(self::$encoder);
+                    self::$encoder->endTag(); //SYNC_ITEMOPERATIONS_PROPERTIES
+                }
+
+            self::$encoder->endTag();//SYNC_ITEMOPERATIONS_FETCH
+        }
+        // empty folder contents operation
+        else if ($efc) {
+            try {
+                // send request to backend
+                self::$backend-> EmptyFolder($folderid, $deletesubfolders);
+            }
+            catch (StatusException $stex) {
+               $status = $stex->getCode();
             }
 
-            if (isset($longid)) {
-                self::$encoder->startTag(SYNC_SEARCH_LONGID);
-                self::$encoder->content($longid);
-                self::$encoder->endTag(); // end SYNC_FOLDERID
+            self::$encoder->startTag(SYNC_ITEMOPERATIONS_EMPTYFOLDERCONTENTS);
 
-                self::$encoder->startTag(SYNC_FOLDERTYPE);
-                self::$encoder->content("Email");
-                self::$encoder->endTag();
+                self::$encoder->startTag(SYNC_ITEMOPERATIONS_STATUS);
+                self::$encoder->content($status);
+                self::$encoder->endTag();//SYNC_ITEMOPERATIONS_STATUS
 
-                $tmp = explode(":", $longid);
-                $data = self::$backend->Fetch($tmp[0], $tmp[1], $collection["cpo"]);
-            }
+                if (isset($folderid)) {
+                    self::$encoder->startTag(SYNC_FOLDERID);
+                    self::$encoder->content($folderid);
+                    self::$encoder->endTag(); // end SYNC_FOLDERID
+                }
+            self::$encoder->endTag();//SYNC_ITEMOPERATIONS_EMPTYFOLDERCONTENTS
+        }
+        // TODO implement ItemOperations Move
+        // move operation
+        else {
+            self::$encoder->startTag(SYNC_ITEMOPERATIONS_MOVE);
+                self::$encoder->startTag(SYNC_ITEMOPERATIONS_STATUS);
+                self::$encoder->content($status);
+                self::$encoder->endTag();//SYNC_ITEMOPERATIONS_STATUS
+            self::$encoder->endTag();//SYNC_ITEMOPERATIONS_MOVE
+        }
 
-            if (isset($filereference)) {
-                self::$encoder->startTag(SYNC_AIRSYNCBASE_FILEREFERENCE);
-                self::$encoder->content($filereference);
-                self::$encoder->endTag(); // end SYNC_AIRSYNCBASE_FILEREFERENCE
-
-                $data = self::$backend->GetAttachmentData($filereference);
-            }
-
-            //TODO put it in try catch block
-
-            if (isset($data)) {
-                self::$encoder->startTag(SYNC_ITEMOPERATIONS_PROPERTIES);
-                $data->Encode(self::$encoder);
-                self::$encoder->endTag(); //SYNC_ITEMOPERATIONS_PROPERTIES
-            }
-
-        self::$encoder->endTag();//SYNC_ITEMOPERATIONS_FETCH
         self::$encoder->endTag();//SYNC_ITEMOPERATIONS_RESPONSE
-
         self::$encoder->endTag();//SYNC_ITEMOPERATIONS_ITEMOPERATIONS
 
         return true;

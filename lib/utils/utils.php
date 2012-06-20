@@ -609,15 +609,31 @@ class Utils {
     }
 
     /**
-    * Normalize the given timestamp to the start of the day
-    *
-    * @param long      $timestamp
-    *
-    * @access private
-    * @return long
-    */
+     * Normalize the given timestamp to the start of the day
+     *
+     * @param long      $timestamp
+     *
+     * @access private
+     * @return long
+     */
     public static function getDayStartOfTimestamp($timestamp) {
         return $timestamp - ($timestamp % (60 * 60 * 24));
+    }
+
+    /**
+     * Returns a formatted string output from an optional timestamp.
+     * If no timestamp is sent, NOW is used.
+     *
+     * @param long  $timestamp
+     *
+     * @access public
+     * @return string
+     */
+    public static function GetFormattedTime($timestamp = false) {
+        if (!$timestamp)
+            return @strftime("%d/%m/%Y %H:%M:%S");
+        else
+            return @strftime("%d/%m/%Y %H:%M:%S", $timestamp);
     }
 }
 

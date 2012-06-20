@@ -42,6 +42,7 @@
 ************************************************/
 
 class Sync extends RequestProcessor {
+    private $importer;
 
     /**
      * Handles the Sync command
@@ -321,32 +322,10 @@ class Sync extends RequestProcessor {
                         $spa->SetConflict(SYNC_CONFLICT_DEFAULT);
                     }
 
-                    // Get our syncstate
-                    if ($status == SYNC_STATUS_SUCCESS) {
-                        try {
-                            $sc->AddParameter($spa, "state", self::$deviceManager->GetStateManager()->GetSyncState($spa->GetSyncKey()));
-
-                            // if this request was made before, there will be a failstate available
-                            $actiondata["failstate"] = self::$deviceManager->GetStateManager()->GetSyncFailState();
-
-                            // if this is an additional folder the backend has to be setup correctly
-                            if (!self::$backend->Setup(ZPush::GetAdditionalSyncFolderStore($spa->GetFolderId())))
-                                throw new StatusException(sprintf("HandleSync() could not Setup() the backend for folder id '%s'", $spa->GetFolderId()), SYNC_STATUS_FOLDERHIERARCHYCHANGED);
-                        }
-                        catch (StateNotFoundException $snfex) {
-                            $status = SYNC_STATUS_INVALIDSYNCKEY;
-                            self::$topCollector->AnnounceInformation("StateNotFoundException", true);
-                        }
-                        catch (StatusException $stex) {
-                           $status = $stex->getCode();
-                           self::$topCollector->AnnounceInformation(sprintf("StatusException code: %d", $status), true);
-                        }
-
-                        // Check if the hierarchycache is available. If not, trigger a HierarchySync
-                        if (self::$deviceManager->IsHierarchySyncRequired()) {
-                            $status = SYNC_STATUS_FOLDERHIERARCHYCHANGED;
-                            ZLog::Write(LOGLEVEL_DEBUG, "HierarchyCache is also not available. Triggering HierarchySync to device");
-                        }
+                    // Check if the hierarchycache is available. If not, trigger a HierarchySync
+                    if (self::$deviceManager->IsHierarchySyncRequired()) {
+                        $status = SYNC_STATUS_FOLDERHIERARCHYCHANGED;
+                        ZLog::Write(LOGLEVEL_DEBUG, "HierarchyCache is also not available. Triggering HierarchySync to device");
                     }
 
                     if(self::$decoder->getElementStartTag(SYNC_PERFORM)) {
@@ -359,26 +338,8 @@ class Sync extends RequestProcessor {
 
                         $performaction = true;
 
-                        if ($status == SYNC_STATUS_SUCCESS) {
-                            try {
-                                // Configure importer with last state
-                                $importer = self::$backend->GetImporter($spa->GetFolderId());
-
-                                // if something goes wrong, ask the mobile to resync the hierarchy
-                                if ($importer === false)
-                                    throw new StatusException(sprintf("HandleSync() could not get an importer for folder id '%s'", $spa->GetFolderId()), SYNC_STATUS_FOLDERHIERARCHYCHANGED);
-
-                                // if there is a valid state obtained after importing changes in a previous loop, we use that state
-                                if ($actiondata["failstate"] && isset($actiondata["failstate"]["failedsyncstate"])) {
-                                    $importer->Config($actiondata["failstate"]["failedsyncstate"], $spa->GetConflict());
-                                }
-                                else
-                                    $importer->Config($sc->GetParameter($spa, "state"), $spa->GetConflict());
-                            }
-                            catch (StatusException $stex) {
-                               $status = $stex->getCode();
-                            }
-                        }
+                        // unset the importer
+                        $this->importer = false;
 
                         $nchanges = 0;
                         while(1) {
@@ -389,13 +350,6 @@ class Sync extends RequestProcessor {
                                 self::$decoder->ungetElement($element);
                                 break;
                             }
-
-                            // before importing the first change, load potential conflicts
-                            // for the current state
-
-                            // TODO check if the failsyncstate applies for conflict detection as well
-                            if ($status == SYNC_STATUS_SUCCESS && $nchanges == 0)
-                                $importer->LoadConflicts($spa->GetCPO(), $sc->GetParameter($spa, "state"));
 
                             if ($status == SYNC_STATUS_SUCCESS)
                                 $nchanges++;
@@ -428,133 +382,43 @@ class Sync extends RequestProcessor {
                                 if(!self::$decoder->getElementEndTag()) // end applicationdata
                                     return false;
                             }
+                            else
+                                $message = false;
 
                             if ($status != SYNC_STATUS_SUCCESS) {
                                 ZLog::Write(LOGLEVEL_WARN, "Ignored incoming change, global status indicates problem.");
                                 continue;
                             }
 
-                            // Detect incoming loop
-                            // messages which were created/removed before will not have the same action executed again
-                            // if a message is edited we perform this action "again", as the message could have been changed on the mobile in the meantime
-                            $ignoreMessage = false;
-                            if ($actiondata["failstate"]) {
-                                // message was ADDED before, do NOT add it again
-                                if ($element[EN_TAG] == SYNC_ADD && $actiondata["failstate"]["clientids"][$clientid]) {
-                                    $ignoreMessage = true;
+                            switch($element[EN_TAG]) {
+                                case SYNC_FETCH:
+                                    array_push($actiondata["fetchids"], $serverid);
+                                    break;
+                                default:
+                                    // get the importer
+                                    if ($this->importer == false)
+                                        $status = $this->getImporter($sc, $spa, &$actiondata);
 
-                                    // make sure no messages are sent back
-                                    self::$deviceManager->SetWindowSize($spa->GetFolderId(), 0);
+                                    if ($status == SYNC_STATUS_SUCCESS)
+                                        $this->importMessage($spa, &$actiondata, $element[EN_TAG], $message, $clientid, $serverid);
 
-                                    $actiondata["clientids"][$clientid] = $actiondata["failstate"]["clientids"][$clientid];
-                                    $actiondata["statusids"][$clientid] = $actiondata["failstate"]["statusids"][$clientid];
-
-                                    ZLog::Write(LOGLEVEL_WARN, sprintf("Mobile loop detected! Incoming new message '%s' was created on the server before. Replying with known new server id: %s", $clientid, $actiondata["clientids"][$clientid]));
-                                }
-
-                                // message was REMOVED before, do NOT attemp to remove it again
-                                if ($element[EN_TAG] == SYNC_REMOVE && $actiondata["failstate"]["removeids"][$serverid]) {
-                                    $ignoreMessage = true;
-
-                                    // make sure no messages are sent back
-                                    self::$deviceManager->SetWindowSize($spa->GetFolderId(), 0);
-
-                                    $actiondata["removeids"][$serverid] = $actiondata["failstate"]["removeids"][$serverid];
-                                    $actiondata["statusids"][$serverid] = $actiondata["failstate"]["statusids"][$serverid];
-
-                                    ZLog::Write(LOGLEVEL_WARN, sprintf("Mobile loop detected! Message '%s' was deleted by the mobile before. Replying with known status: %s", $clientid, $actiondata["statusids"][$serverid]));
-                                }
+                                    break;
                             }
 
-                            if (!$ignoreMessage) {
-                                switch($element[EN_TAG]) {
-                                    case SYNC_MODIFY:
-                                        try {
-                                            $actiondata["modifyids"][] = $serverid;
-
-                                            // check incoming message without logging WARN messages about errors
-                                            if (!$message->Check(true)) {
-                                                $actiondata["statusids"][$serverid] = SYNC_STATUS_CLIENTSERVERCONVERSATIONERROR;
-                                            }
-                                            else {
-                                                if(isset($message->read)) {
-                                                    // Currently, 'read' is only sent by the PDA when it is ONLY setting the read flag.
-                                                    $importer->ImportMessageReadFlag($serverid, $message->read);
-                                                }
-                                                elseif (!isset($message->flag)) {
-                                                    $importer->ImportMessageChange($serverid, $message);
-                                                }
-
-                                                // email todoflags - some devices send todos flags together with read flags,
-                                                // so they have to be handled separately
-                                                if (isset($message->flag)){
-                                                    $importer->ImportMessageChange($serverid, $message);
-                                                }
-
-                                                $actiondata["statusids"][$serverid] = SYNC_STATUS_SUCCESS;
-                                            }
-                                        }
-                                        catch (StatusException $stex) {
-                                            $actiondata["statusids"][$serverid] = $stex->getCode();
-                                        }
-
-                                        break;
-                                    case SYNC_ADD:
-                                        try {
-                                            // check incoming message without logging WARN messages about errors
-                                             if (!$message->Check(true)) {
-                                                $actiondata["clientids"][$clientid] = false;
-                                                $actiondata["statusids"][$clientid] = SYNC_STATUS_CLIENTSERVERCONVERSATIONERROR;
-                                            }
-                                            else {
-                                                $actiondata["clientids"][$clientid] = false;
-                                                $actiondata["clientids"][$clientid] = $importer->ImportMessageChange(false, $message);
-                                                $actiondata["statusids"][$clientid] = SYNC_STATUS_SUCCESS;
-                                            }
-                                        }
-                                        catch (StatusException $stex) {
-                                           $actiondata["statusids"][$clientid] = $stex->getCode();
-                                        }
-                                        break;
-                                    case SYNC_REMOVE:
-                                        try {
-                                            $actiondata["removeids"][] = $serverid;
-                                            // if message deletions are to be moved, move them
-                                            if($spa->GetDeletesAsMoves()) {
-                                                $folderid = self::$backend->GetWasteBasket();
-
-                                                if($folderid) {
-                                                    $importer->ImportMessageMove($serverid, $folderid);
-                                                    $actiondata["statusids"][$serverid] = SYNC_STATUS_SUCCESS;
-                                                    break;
-                                                }
-                                                else
-                                                    ZLog::Write(LOGLEVEL_WARN, "Message should be moved to WasteBasket, but the Backend did not return a destination ID. Message is hard deleted now!");
-                                            }
-
-                                            $importer->ImportMessageDeletion($serverid);
-                                            $actiondata["statusids"][$serverid] = SYNC_STATUS_SUCCESS;
-                                        }
-                                        catch (StatusException $stex) {
-                                           $actiondata["statusids"][$serverid] = $stex->getCode();
-                                        }
-                                        break;
-                                    case SYNC_FETCH:
-                                        array_push($actiondata["fetchids"], $serverid);
-                                        break;
-                                }
+                            if ($actiondata["fetchids"])
+                                self::$topCollector->AnnounceInformation(sprintf("Fetching %d", $nchanges),true);
+                            else
                                 self::$topCollector->AnnounceInformation(sprintf("Incoming %d", $nchanges),($nchanges>0)?true:false);
-                            }
 
                             if(!self::$decoder->getElementEndTag()) // end add/change/delete/move
                                 return false;
                         }
 
-                        if ($status == SYNC_STATUS_SUCCESS) {
+                        if ($status == SYNC_STATUS_SUCCESS && $this->importer !== false) {
                             ZLog::Write(LOGLEVEL_INFO, sprintf("Processed '%d' incoming changes", $nchanges));
                             try {
                                 // Save the updated state, which is used for the exporter later
-                                $sc->AddParameter($spa, "state", $importer->GetState());
+                                $sc->AddParameter($spa, "state", $this->importer->GetState());
                             }
                             catch (StatusException $stex) {
                                $status = $stex->getCode();
@@ -671,34 +535,51 @@ class Sync extends RequestProcessor {
             if (isset($hbinterval))
                 $sc->SetLifetime($hbinterval);
 
-            $foundchanges = false;
+            // states are lazy loaded - we have to make sure that they are there!
+            foreach($sc as $folderid => $spa) {
+                $fad = array();
+                // if loading the states fails, we do not enter heartbeat, but we keep $status on SYNC_STATUS_SUCCESS
+                // so when the changes are exported the correct folder gets an SYNC_STATUS_INVALIDSYNCKEY
+                $loadstatus = $this->loadStates($sc, $spa, $fad);
+            }
 
-            // wait for changes
-            try {
-                // if doing an empty sync, check only once for changes
-                if ($emtpysync) {
-                    $foundchanges = $sc->CountChanges();
-                }
+            if ($loadstatus = SYNC_STATUS_SUCCESS) {
+                $foundchanges = false;
+
                 // wait for changes
-                else {
-                    ZLog::Write(LOGLEVEL_DEBUG, sprintf("HandleSync(): Entering Heartbeat mode"));
-                    $foundchanges = $sc->CheckForChanges($sc->GetLifetime(), $interval);
+                try {
+                    // if doing an empty sync, check only once for changes
+                    if ($emtpysync) {
+                        $foundchanges = $sc->CountChanges();
+                    }
+                    // wait for changes
+                    else {
+                        ZLog::Write(LOGLEVEL_DEBUG, sprintf("HandleSync(): Entering Heartbeat mode"));
+                        $foundchanges = $sc->CheckForChanges($sc->GetLifetime(), $interval);
+                    }
                 }
-            }
-            catch (StatusException $stex) {
-               $status = SYNC_STATUS_FOLDERHIERARCHYCHANGED;
-               self::$topCollector->AnnounceInformation(sprintf("StatusException code: %d", $status), true);
-            }
+                catch (StatusException $stex) {
+                   $status = SYNC_STATUS_FOLDERHIERARCHYCHANGED;
+                   self::$topCollector->AnnounceInformation(sprintf("StatusException code: %d", $status), true);
+                }
 
-            // in case of an empty sync with no changes, we can reply with an empty response
-            if ($emtpysync && !$foundchanges){
-                ZLog::Write(LOGLEVEL_DEBUG, "No changes found for empty sync. Replying with empty response");
-                return true;
-            }
+                // in case of an empty sync with no changes, we can reply with an empty response
+                if ($emtpysync && !$foundchanges){
+                    ZLog::Write(LOGLEVEL_DEBUG, "No changes found for empty sync. Replying with empty response");
+                    return true;
+                }
 
-            if ($foundchanges) {
-                foreach ($sc->GetChangedFolderIds() as $folderid => $changecount) {
-                    ZLog::Write(LOGLEVEL_DEBUG, sprintf("HandleSync(): heartbeat: found %d changes in '%s'", $changecount, $folderid));
+                if ($foundchanges) {
+                    foreach ($sc->GetChangedFolderIds() as $folderid => $changecount) {
+                        // check if there were other sync requests for a folder during the heartbeat
+                        $spa = $sc->GetCollection($folderid);
+                        if ($changecount > 0 && self::$deviceManager->CheckHearbeatStateIntegrity($spa->GetFolderId(), $spa->GetUuid(), $spa->GetUuidCounter())) {
+                            ZLog::Write(LOGLEVEL_DEBUG, sprintf("HandleSync(): heartbeat: found %d changes in '%s' which was already synchronized. Heartbeat aborted!", $changecount, $folderid));
+                            $status = SYNC_COMMONSTATUS_SYNCSTATEVERSIONINVALID;
+                        }
+                        else
+                            ZLog::Write(LOGLEVEL_DEBUG, sprintf("HandleSync(): heartbeat: found %d changes in '%s'", $changecount, $folderid));
+                    }
                 }
             }
         }
@@ -723,53 +604,66 @@ class Sync extends RequestProcessor {
                         // get actiondata
                         $actiondata = $sc->GetParameter($spa, "actiondata");
 
+                        if ($status == SYNC_STATUS_SUCCESS && (!$spa->GetContentClass() || !$spa->GetFolderId())) {
+                            ZLog::Write(LOGLEVEL_ERROR, sprintf("HandleSync(): no content class or folderid found for collection."));
+                            continue;
+                        }
+
                         if (! $sc->GetParameter($spa, "requested"))
                             ZLog::Write(LOGLEVEL_DEBUG, sprintf("HandleSync(): partial sync for folder class '%s' with id '%s'", $spa->GetContentClass(), $spa->GetFolderId()));
 
-                        // TODO do not get Exporter / Changes if this is a fetch operation
-
                         // initialize exporter to get changecount
                         $changecount = 0;
+                        if (isset($exporter))
+                            unset($exporter);
 
                         // TODO we could check against $sc->GetChangedFolderIds() on heartbeat so we do not need to configure all exporter again
                         if($status == SYNC_STATUS_SUCCESS && ($sc->GetParameter($spa, "getchanges") || ! $spa->HasSyncKey())) {
-                            try {
-                                // Use the state from the importer, as changes may have already happened
-                                $exporter = self::$backend->GetExporter($spa->GetFolderId());
 
-                                if ($exporter === false)
-                                    throw new StatusException(sprintf("HandleSync() could not get an exporter for folder id '%s'", $spa->GetFolderId()), SYNC_STATUS_FOLDERHIERARCHYCHANGED);
-                            }
-                            catch (StatusException $stex) {
-                               $status = $stex->getCode();
-                            }
-                            try {
-                                // Stream the messages directly to the PDA
-                                $streamimporter = new ImportChangesStream(self::$encoder, ZPush::getSyncObjectFromFolderClass($spa->GetContentClass()));
+                            //make sure the states are loaded
+                            $status = $this->loadStates($sc, $spa, $actiondata);
 
-                                if ($exporter !== false) {
-                                    $exporter->Config($sc->GetParameter($spa, "state"));
-                                    $exporter->ConfigContentParameters($spa->GetCPO());
-                                    $exporter->InitializeExporter($streamimporter);
+                            if($status == SYNC_STATUS_SUCCESS) {
+                                try {
+                                    // Use the state from the importer, as changes may have already happened
+                                    $exporter = self::$backend->GetExporter($spa->GetFolderId());
 
-                                    $changecount = $exporter->GetChangeCount();
+                                    if ($exporter === false)
+                                        throw new StatusException(sprintf("HandleSync() could not get an exporter for folder id '%s'", $spa->GetFolderId()), SYNC_STATUS_FOLDERHIERARCHYCHANGED);
                                 }
-                            }
-                            catch (StatusException $stex) {
-                                if ($stex->getCode() === SYNC_FSSTATUS_CODEUNKNOWN && $spa->HasSyncKey())
-                                    $status = SYNC_STATUS_INVALIDSYNCKEY;
-                                else
-                                    $status = $stex->getCode();
-                            }
+                                catch (StatusException $stex) {
+                                   $status = $stex->getCode();
+                                }
+                                try {
+                                    // Stream the messages directly to the PDA
+                                    $streamimporter = new ImportChangesStream(self::$encoder, ZPush::getSyncObjectFromFolderClass($spa->GetContentClass()));
 
-                            if (! $spa->HasSyncKey())
-                                self::$topCollector->AnnounceInformation(sprintf("Exporter registered. %d objects queued.", $changecount), true);
-                            else if ($status != SYNC_STATUS_SUCCESS)
-                                self::$topCollector->AnnounceInformation(sprintf("StatusException code: %d", $status), true);
+                                    if ($exporter !== false) {
+                                        $exporter->Config($sc->GetParameter($spa, "state"));
+                                        $exporter->ConfigContentParameters($spa->GetCPO());
+                                        $exporter->InitializeExporter($streamimporter);
+
+                                        $changecount = $exporter->GetChangeCount();
+                                    }
+                                }
+                                catch (StatusException $stex) {
+                                    if ($stex->getCode() === SYNC_FSSTATUS_CODEUNKNOWN && $spa->HasSyncKey())
+                                        $status = SYNC_STATUS_INVALIDSYNCKEY;
+                                    else
+                                        $status = $stex->getCode();
+                                }
+
+                                if (! $spa->HasSyncKey())
+                                    self::$topCollector->AnnounceInformation(sprintf("Exporter registered. %d objects queued.", $changecount), true);
+                                else if ($status != SYNC_STATUS_SUCCESS)
+                                    self::$topCollector->AnnounceInformation(sprintf("StatusException code: %d", $status), true);
+                            }
                         }
 
-                        if (! $sc->GetParameter($spa, "requested") && $spa->HasSyncKey() && $changecount == 0)
+                        if (isset($hbinterval) && $changecount == 0 && $status == SYNC_STATUS_SUCCESS) {
+                            ZLog::Write(LOGLEVEL_DEBUG, "No changes found for heartbeat folder. Omitting empty output.");
                             continue;
+                        }
 
                         // Get a new sync key to output to the client if any changes have been send or will are available
                         if (!empty($actiondata["modifyids"]) ||
@@ -925,7 +819,7 @@ class Sync extends RequestProcessor {
                                 catch (SyncObjectBrokenException $mbe) {
                                     $brokenSO = $mbe->GetSyncObject();
                                     if (!$brokenSO) {
-                                        ZLog::Write(LOGLEVEL_ERROR, sprintf("HandleSync(): Catched SyncObjectBrokenException but broken SyncObject available. This should be fixed in the backend."));
+                                        ZLog::Write(LOGLEVEL_ERROR, sprintf("HandleSync(): Catched SyncObjectBrokenException but broken SyncObject not available. This should be fixed in the backend."));
                                     }
                                     else {
                                         if (!isset($brokenSO->id)) {
@@ -942,6 +836,13 @@ class Sync extends RequestProcessor {
                                 }
 
                             }
+
+                            // $progress is not an array when exporting the last message
+                            // so we get the number to display from the streamimporter
+                            if (isset($streamimporter)) {
+                                $n = $streamimporter->GetImportedMessages();
+                            }
+
                             self::$encoder->endTag();
                             self::$topCollector->AnnounceInformation(sprintf("Outgoing %d objects%s", $n, ($n >= $windowSize)?" of ".$changecount:""), true);
                         }
@@ -956,9 +857,9 @@ class Sync extends RequestProcessor {
                                 if (isset($exporter) && $exporter)
                                     $state = $exporter->GetState();
 
-                                // nothing exported, but possibly imported
-                                else if (isset($importer) && $importer)
-                                    $state = $importer->GetState();
+                                // nothing exported, but possibly imported - get the importer state
+                                else if ($sc->GetParameter($spa, "state") !== null)
+                                    $state = $sc->GetParameter($spa, "state");
 
                                 // if a new request without state information (hierarchy) save an empty state
                                 else if (! $spa->HasSyncKey())
@@ -987,6 +888,220 @@ class Sync extends RequestProcessor {
         self::$encoder->endTag(); //SYNC_SYNCHRONIZE
 
         return true;
+    }
+
+    /**
+     * Loads the states and writes them into the SyncCollection Object and the actiondata failstate
+     *
+     * @param SyncCollection    $sc             SyncCollection object
+     * @param SyncParameters    $spa            SyncParameters object
+     * @param array             $actiondata     Actiondata array
+     * @param boolean           $loadFailsave   (opt) default false - indicates if the failsave states should be loaded
+     *
+     * @access private
+     * @return status           indicating if there were errors. If no errors, status is SYNC_STATUS_SUCCESS
+     */
+    private function loadStates($sc, $spa, &$actiondata, $loadFailsave = false) {
+        $status = SYNC_STATUS_SUCCESS;
+
+        if ($sc->GetParameter($spa, "state") == null) {
+            ZLog::Write(LOGLEVEL_DEBUG, sprintf("Sync->loadStates(): loading states for folder '%s'",$spa->GetFolderId()));
+
+            try {
+                $sc->AddParameter($spa, "state", self::$deviceManager->GetStateManager()->GetSyncState($spa->GetSyncKey()));
+
+                if ($loadFailsave) {
+                    // if this request was made before, there will be a failstate available
+                    $actiondata["failstate"] = self::$deviceManager->GetStateManager()->GetSyncFailState();
+                }
+
+                // if this is an additional folder the backend has to be setup correctly
+                if (!self::$backend->Setup(ZPush::GetAdditionalSyncFolderStore($spa->GetFolderId())))
+                    throw new StatusException(sprintf("HandleSync() could not Setup() the backend for folder id '%s'", $spa->GetFolderId()), SYNC_STATUS_FOLDERHIERARCHYCHANGED);
+            }
+            catch (StateNotFoundException $snfex) {
+                $status = SYNC_STATUS_INVALIDSYNCKEY;
+                self::$topCollector->AnnounceInformation("StateNotFoundException", true);
+            }
+            catch (StatusException $stex) {
+               $status = $stex->getCode();
+               self::$topCollector->AnnounceInformation(sprintf("StatusException code: %d", $status), true);
+            }
+        }
+
+        return $status;
+    }
+
+    /**
+     * Initializes the importer for the SyncParameters folder, loads necessary
+     * states (incl. failsave states) and initializes the conflict detection
+     *
+     * @param SyncCollection    $sc             SyncCollection object
+     * @param SyncParameters    $spa            SyncParameters object
+     * @param array             $actiondata     Actiondata array
+     *
+     * @access private
+     * @return status           indicating if there were errors. If no errors, status is SYNC_STATUS_SUCCESS
+     */
+    private function getImporter($sc, $spa, &$actiondata) {
+        ZLog::Write(LOGLEVEL_DEBUG, "Sync->getImporter(): initialize importer");
+        $status = SYNC_STATUS_SUCCESS;
+
+        // load the states with failsave data
+        $status = $this->loadStates($sc, $spa, $actiondata, true);
+
+        try {
+            // Configure importer with last state
+            $this->importer = self::$backend->GetImporter($spa->GetFolderId());
+
+            // if something goes wrong, ask the mobile to resync the hierarchy
+            if ($this->importer === false)
+                throw new StatusException(sprintf("Sync->getImporter(): no importer for folder id '%s'", $spa->GetFolderId()), SYNC_STATUS_FOLDERHIERARCHYCHANGED);
+
+            // if there is a valid state obtained after importing changes in a previous loop, we use that state
+            if ($actiondata["failstate"] && isset($actiondata["failstate"]["failedsyncstate"])) {
+                $this->importer->Config($actiondata["failstate"]["failedsyncstate"], $spa->GetConflict());
+            }
+            else
+                $this->importer->Config($sc->GetParameter($spa, "state"), $spa->GetConflict());
+        }
+        catch (StatusException $stex) {
+           $status = $stex->getCode();
+        }
+
+        $this->importer->LoadConflicts($spa->GetCPO(), $sc->GetParameter($spa, "state"));
+
+        return $status;
+    }
+
+    /**
+     * Imports a message
+     *
+     * @param SyncParameters    $spa            SyncParameters object
+     * @param array             $actiondata     Actiondata array
+     * @param integer           $todo           WBXML flag indicating how message should be imported.
+     *                                          Valid values: SYNC_ADD, SYNC_MODIFY, SYNC_REMOVE
+     * @param SyncObject        $message        SyncObject message to be imported
+     * @param string            $clientid       Client message identifier
+     * @param string            $serverid       Server message identifier
+     *
+     * @access private
+     * @throws StatusException  in case the importer is not available
+     * @return -                Message related status are returned in the actiondata.
+     */
+    private function importMessage($spa, &$actiondata, $todo, $message, $clientid, $serverid) {
+        // the importer needs to be available!
+        if ($this->importer == false)
+            throw StatusException(sprintf("Sync->importMessage(): importer not available", SYNC_STATUS_SERVERERROR));
+
+        // Detect incoming loop
+        // messages which were created/removed before will not have the same action executed again
+        // if a message is edited we perform this action "again", as the message could have been changed on the mobile in the meantime
+        $ignoreMessage = false;
+        if ($actiondata["failstate"]) {
+            // message was ADDED before, do NOT add it again
+            if ($todo == SYNC_ADD && $actiondata["failstate"]["clientids"][$clientid]) {
+                $ignoreMessage = true;
+
+                // make sure no messages are sent back
+                self::$deviceManager->SetWindowSize($spa->GetFolderId(), 0);
+
+                $actiondata["clientids"][$clientid] = $actiondata["failstate"]["clientids"][$clientid];
+                $actiondata["statusids"][$clientid] = $actiondata["failstate"]["statusids"][$clientid];
+
+                ZLog::Write(LOGLEVEL_WARN, sprintf("Mobile loop detected! Incoming new message '%s' was created on the server before. Replying with known new server id: %s", $clientid, $actiondata["clientids"][$clientid]));
+            }
+
+            // message was REMOVED before, do NOT attemp to remove it again
+            if ($todo == SYNC_REMOVE && $actiondata["failstate"]["removeids"][$serverid]) {
+                $ignoreMessage = true;
+
+                // make sure no messages are sent back
+                self::$deviceManager->SetWindowSize($spa->GetFolderId(), 0);
+
+                $actiondata["removeids"][$serverid] = $actiondata["failstate"]["removeids"][$serverid];
+                $actiondata["statusids"][$serverid] = $actiondata["failstate"]["statusids"][$serverid];
+
+                ZLog::Write(LOGLEVEL_WARN, sprintf("Mobile loop detected! Message '%s' was deleted by the mobile before. Replying with known status: %s", $clientid, $actiondata["statusids"][$serverid]));
+            }
+        }
+
+        if (!$ignoreMessage) {
+            switch($todo) {
+                case SYNC_MODIFY:
+                    try {
+                        $actiondata["modifyids"][] = $serverid;
+
+                        // check incoming message without logging WARN messages about errors
+                        if (!($message instanceof SyncObject) || !$message->Check(true)) {
+                            $actiondata["statusids"][$serverid] = SYNC_STATUS_CLIENTSERVERCONVERSATIONERROR;
+                        }
+                        else {
+                            if(isset($message->read)) {
+                                // Currently, 'read' is only sent by the PDA when it is ONLY setting the read flag.
+                                $this->importer->ImportMessageReadFlag($serverid, $message->read);
+                            }
+                            elseif (!isset($message->flag)) {
+                                $this->importer->ImportMessageChange($serverid, $message);
+                            }
+
+                            // email todoflags - some devices send todos flags together with read flags,
+                            // so they have to be handled separately
+                            if (isset($message->flag)){
+                                $this->importer->ImportMessageChange($serverid, $message);
+                            }
+
+                            $actiondata["statusids"][$serverid] = SYNC_STATUS_SUCCESS;
+                        }
+                    }
+                    catch (StatusException $stex) {
+                        $actiondata["statusids"][$serverid] = $stex->getCode();
+                    }
+
+                    break;
+                case SYNC_ADD:
+                    try {
+                        // check incoming message without logging WARN messages about errors
+                        if (!($message instanceof SyncObject) || !$message->Check(true)) {
+                            $actiondata["clientids"][$clientid] = false;
+                            $actiondata["statusids"][$clientid] = SYNC_STATUS_CLIENTSERVERCONVERSATIONERROR;
+                        }
+                        else {
+                            $actiondata["clientids"][$clientid] = false;
+                            $actiondata["clientids"][$clientid] = $this->importer->ImportMessageChange(false, $message);
+                            $actiondata["statusids"][$clientid] = SYNC_STATUS_SUCCESS;
+                        }
+                    }
+                    catch (StatusException $stex) {
+                       $actiondata["statusids"][$clientid] = $stex->getCode();
+                    }
+                    break;
+                case SYNC_REMOVE:
+                    try {
+                        $actiondata["removeids"][] = $serverid;
+                        // if message deletions are to be moved, move them
+                        if($spa->GetDeletesAsMoves()) {
+                            $folderid = self::$backend->GetWasteBasket();
+
+                            if($folderid) {
+                                $this->importer->ImportMessageMove($serverid, $folderid);
+                                $actiondata["statusids"][$serverid] = SYNC_STATUS_SUCCESS;
+                                break;
+                            }
+                            else
+                                ZLog::Write(LOGLEVEL_WARN, "Message should be moved to WasteBasket, but the Backend did not return a destination ID. Message is hard deleted now!");
+                        }
+
+                        $this->importer->ImportMessageDeletion($serverid);
+                        $actiondata["statusids"][$serverid] = SYNC_STATUS_SUCCESS;
+                    }
+                    catch (StatusException $stex) {
+                       $actiondata["statusids"][$serverid] = $stex->getCode();
+                    }
+                    break;
+            }
+            ZLog::Write(LOGLEVEL_DEBUG, "Sync->importMessage(): message imported");
+        }
     }
 }
 

@@ -209,6 +209,20 @@ interface IBackend {
     public function GetAttachmentData($attname);
 
     /**
+     * Deletes all contents of the specified folder.
+     * This is generally used to empty the trash (wastebasked), but could also be used on any
+     * other folder.
+     *
+     * @param string        $folderid
+     * @param boolean       $includeSubfolders      (opt) also delete sub folders, default true
+     *
+     * @access public
+     * @return boolean
+     * @throws StatusException
+     */
+    public function EmptyFolder($folderid, $includeSubfolders = true);
+
+    /**
      * Processes a response to a meeting request.
      * CalendarID is a reference and has to be set if a new calendar item is created
      *
@@ -241,7 +255,7 @@ interface IBackend {
      * @access public
      * @return boolean      false if there is any problem with that folder
      */
-     public function ChangesSinkInitialize($folderid);
+    public function ChangesSinkInitialize($folderid);
 
     /**
      * The actual ChangesSink.

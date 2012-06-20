@@ -83,7 +83,7 @@ class StateManager {
     public function StateManager() {
         $this->statemachine = ZPush::GetStateMachine();
         $this->hierarchyOperation = ZPush::HierarchyCommand(Request::GetCommandCode());
-        $this->deleteOldStates = (Request::GetCommandCode() === ZPush::COMMAND_SYNC);
+        $this->deleteOldStates = (Request::GetCommandCode() === ZPush::COMMAND_SYNC || $this->hierarchyOperation);
         $this->synchedFolders = array();
     }
 

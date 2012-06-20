@@ -41,5 +41,13 @@
 * Consult LICENSE file for details
 ************************************************/
 
-define("ZPUSH_VERSION", "2.0beta5-1261");
+if (!defined("ZPUSH_VERSION")) {
+    if (file_exists(".svn/entries")) {
+        $svn = file(".svn/entries");
+        define("ZPUSH_VERSION", "SVN " . substr(trim($svn[4]),stripos($svn[4],"z-push")+7) ." r".trim($svn[3]));
+    }
+    else
+        define("ZPUSH_VERSION", "2.0RC-1333");
+}
+
 ?>

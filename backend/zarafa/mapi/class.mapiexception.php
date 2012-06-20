@@ -1,6 +1,6 @@
 <?php
 /*
- * Copyright 2005 - 2009  Zarafa B.V.
+ * Copyright 2005 - 2012  Zarafa B.V.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License, version 3,
@@ -71,29 +71,29 @@
 
             switch($this->getCode())
             {
-                case (MAPI_E_NO_ACCESS):
+                case MAPI_E_NO_ACCESS:
                     return _("You have insufficient privileges to open this object.");
-                case (MAPI_E_LOGON_FAILED):
-                case (MAPI_E_UNCONFIGURED):
+                case MAPI_E_LOGON_FAILED:
+                case MAPI_E_UNCONFIGURED:
                     return _("Logon Failed. Please check your username/password.");
-                case (MAPI_E_NETWORK_ERROR):
+                case MAPI_E_NETWORK_ERROR:
                     return _("Can not connect to Zarafa server.");
-                case (MAPI_E_UNKNOWN_ENTRYID):
+                case MAPI_E_UNKNOWN_ENTRYID:
                     return _("Can not open object with provided id.");
-                case (MAPI_E_NO_RECIPIENTS):
+                case MAPI_E_NO_RECIPIENTS:
                     return _("There are no recipients in the message.");
-                case (MAPI_E_NOT_FOUND):
+                case MAPI_E_NOT_FOUND:
                     return _("Can not find object.");
-                case (MAPI_E_INTERFACE_NOT_SUPPORTED):
-                case (MAPI_E_INVALID_PARAMETER):
-                case (MAPI_E_INVALID_ENTRYID):
-                case (MAPI_E_INVALID_OBJECT):
-                case (MAPI_E_TOO_COMPLEX):
-                case (MAPI_E_CORRUPT_DATA):
-                case (MAPI_E_END_OF_SESSION):
-                case (MAPI_E_AMBIGUOUS_RECIP):
-                case (MAPI_E_COLLISION):
-                case (MAPI_E_UNCONFIGURED):
+                case MAPI_E_INTERFACE_NOT_SUPPORTED:
+                case MAPI_E_INVALID_PARAMETER:
+                case MAPI_E_INVALID_ENTRYID:
+                case MAPI_E_INVALID_OBJECT:
+                case MAPI_E_TOO_COMPLEX:
+                case MAPI_E_CORRUPT_DATA:
+                case MAPI_E_END_OF_SESSION:
+                case MAPI_E_AMBIGUOUS_RECIP:
+                case MAPI_E_COLLISION:
+                case MAPI_E_UNCONFIGURED:
                 default :
                     return sprintf(_("Unknown MAPI Error: %s"), get_mapi_error_name($this->getCode()));
             }

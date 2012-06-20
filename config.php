@@ -75,7 +75,7 @@
 
     // To save e.g. WBXML data only for selected users, add the usernames to the array
     // The data will be saved into a dedicated file per user in the LOGFILEDIR
-    define('LOGUSERLEVEL', LOGLEVEL_WBXML);
+    define('LOGUSERLEVEL', LOGLEVEL_DEVICEID);
     $specialLogUsers = array();
 
 
@@ -113,6 +113,10 @@
     // a higher value if you have a high load on the server.
     define('PING_INTERVAL', 30);
 
+    // Interval in seconds to force a re-check of potentially missed notifications when
+    // using a changes sink. Default are 300 seconds (every 5 min).
+    // This can also be disabled by setting it to false
+    define('SINK_FORCERECHECK', 300);
 
 /**********************************************************************************
  *  Backend settings

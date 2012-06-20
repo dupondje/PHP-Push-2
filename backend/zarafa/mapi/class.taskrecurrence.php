@@ -1,6 +1,6 @@
 <?php
 /*
- * Copyright 2005 - 2009  Zarafa B.V.
+ * Copyright 2005 - 2012  Zarafa B.V.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License, version 3,
@@ -254,7 +254,7 @@
                 // Retrieve next occurrence
                 $items = $this->getItems($start, $dayend, 1);
 
-                return (count($items) > 0) ? $items[0] : false;
+                return !empty($items) ? $items[0] : false;
             }
         }
 
@@ -424,7 +424,8 @@
                 $props[$this->proptags['reset_reminder']] = false;
             }
 
-            if (count($props) > 0) mapi_setprops($this->message, $props);
+            if (!empty($props))
+                mapi_setprops($this->message, $props);
         }
 
         /**

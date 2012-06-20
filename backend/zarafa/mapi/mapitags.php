@@ -1,6 +1,6 @@
 <?php
 /*
- * Copyright 2005 - 2009  Zarafa B.V.
+ * Copyright 2005 - 2012  Zarafa B.V.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License, version 3,
@@ -273,9 +273,9 @@ define('PR_USER_NAME'                                 ,mapi_prop_tag(PT_STRING8,
 define('PR_MAILBOX_OWNER_ENTRYID'                     ,mapi_prop_tag(PT_BINARY,      0x6618+0x03));
 define('PR_MAILBOX_OWNER_NAME'                        ,mapi_prop_tag(PT_STRING8,     0x6618+0x04));
 
-define('PR_HIERARCHY_SYNCHRONIZER'                    ,mapi_prop_tag(PT_OBJECT, 	 0x6618+0x14));
-define('PR_CONTENTS_SYNCHRONIZER'                     ,mapi_prop_tag(PT_OBJECT, 	 0x6618+0x15));
-define('PR_COLLECTOR'                                 ,mapi_prop_tag(PT_OBJECT, 	 0x6618+0x16));
+define('PR_HIERARCHY_SYNCHRONIZER'                    ,mapi_prop_tag(PT_OBJECT,      0x6618+0x14));
+define('PR_CONTENTS_SYNCHRONIZER'                     ,mapi_prop_tag(PT_OBJECT,      0x6618+0x15));
+define('PR_COLLECTOR'                                 ,mapi_prop_tag(PT_OBJECT,      0x6618+0x16));
 
 define('PR_SMTP_ADDRESS'                              ,mapi_prop_tag(PT_TSTRING,     0x39FE));
 
@@ -1064,14 +1064,14 @@ define('PR_IPM_TASK_ENTRYID'                          ,mapi_prop_tag(PT_BINARY, 
 define('PR_IPM_DRAFTS_ENTRYID'                        ,mapi_prop_tag(PT_BINARY,      0x36D7));
 /*
 PR_ADDITIONAL_REN_ENTRYIDS:
-	This is a multivalued property which contains entry IDs for certain special folders.
-	The first 5 (0-4) entries in this multivalued property are as follows:
-		0 - Conflicts folder
-		1 - Sync Issues folder
-		2 - Local Failures folder
-		3 - Server Failures folder
-		4 - Junk E-mail Folder
-		5 - sfSpamTagDontUse (unknown what this is, disable olk spam stuff?)
+    This is a multivalued property which contains entry IDs for certain special folders.
+    The first 5 (0-4) entries in this multivalued property are as follows:
+        0 - Conflicts folder
+        1 - Sync Issues folder
+        2 - Local Failures folder
+        3 - Server Failures folder
+        4 - Junk E-mail Folder
+        5 - sfSpamTagDontUse (unknown what this is, disable olk spam stuff?)
 */
 define('PR_ADDITIONAL_REN_ENTRYIDS'                   ,mapi_prop_tag(PT_MV_BINARY,   0x36D8));
 define('PR_FREEBUSY_ENTRYIDS'                         ,mapi_prop_tag(PT_MV_BINARY,   0x36E4));
@@ -1079,34 +1079,34 @@ define('PR_REM_ONLINE_ENTRYID'                        ,mapi_prop_tag(PT_BINARY, 
 define('PR_REM_OFFLINE_ENTRYID'                       ,mapi_prop_tag(PT_BINARY,      0x36D6));
 /*
 PR_IPM_OL2007_ENTRYIDS:
-	This is a single binary property containing the entryids for:
-	- 'Rss feeds' folder
-	- The searchfolder 'Tracked mail processing'
-	- The searchfolder 'To-do list'
+    This is a single binary property containing the entryids for:
+    - 'Rss feeds' folder
+    - The searchfolder 'Tracked mail processing'
+    - The searchfolder 'To-do list'
 
-	However, it is encoded something like the following:
+    However, it is encoded something like the following:
 
-	01803200 (type: rss feeds ?)
-	0100
-	2E00
-	00000000B774162F0098C84182DE9E4358E4249D01000B41FF66083D464EA7E34D6026C9B143000000006DDA0000 (entryid)
-	04803200 (type: tracked mail processing ?)
-	0100
-	2E00
-	00000000B774162F0098C84182DE9E4358E4249D01000B41FF66083D464EA7E34D6026C9B143000000006DDB0000 (entryid)
-	02803200 (type: todo list ?)
-	0100
-	2E00
-	00000000B774162F0098C84182DE9E4358E4249D01000B41FF66083D464EA7E34D6026C9B143000000006DE40000 (entryid)
-	00000000 (terminator?)
+    01803200 (type: rss feeds ?)
+    0100
+    2E00
+    00000000B774162F0098C84182DE9E4358E4249D01000B41FF66083D464EA7E34D6026C9B143000000006DDA0000 (entryid)
+    04803200 (type: tracked mail processing ?)
+    0100
+    2E00
+    00000000B774162F0098C84182DE9E4358E4249D01000B41FF66083D464EA7E34D6026C9B143000000006DDB0000 (entryid)
+    02803200 (type: todo list ?)
+    0100
+    2E00
+    00000000B774162F0098C84182DE9E4358E4249D01000B41FF66083D464EA7E34D6026C9B143000000006DE40000 (entryid)
+    00000000 (terminator?)
 
-	It may also only contain the rss feeds entryid, and then have the 00000000 terminator directly after the entryid:
+    It may also only contain the rss feeds entryid, and then have the 00000000 terminator directly after the entryid:
 
-	01803200 (type: rss feeds ?)
-	0100
-	2E00
-	00000000B774162F0098C84182DE9E4358E4249D01000B41FF66083D464EA7E34D6026C9B143000000006DDA0000 (entryid)
-	00000000 (terminator?)
+    01803200 (type: rss feeds ?)
+    0100
+    2E00
+    00000000B774162F0098C84182DE9E4358E4249D01000B41FF66083D464EA7E34D6026C9B143000000006DDA0000 (entryid)
+    00000000 (terminator?)
 */
 define('PR_IPM_OL2007_ENTRYIDS'                       ,mapi_prop_tag(PT_BINARY,      0x36D9));
 
@@ -1146,20 +1146,23 @@ define('PR_EC_WEBACCESS_SETTINGS_JSON'                ,mapi_prop_tag(PT_STRING8,
 define('PR_EC_RECIPIENT_HISTORY_JSON'                 ,mapi_prop_tag(PT_STRING8,     PR_EC_BASE+0x73));
 
 /* statistics properties */
-define('PR_EC_STATSTABLE_SYSTEM'		, mapi_prop_tag(PT_OBJECT,		PR_EC_BASE+0x30));
-define('PR_EC_STATSTABLE_SESSIONS'		, mapi_prop_tag(PT_OBJECT,		PR_EC_BASE+0x31));
-define('PR_EC_STATSTABLE_USERS'			, mapi_prop_tag(PT_OBJECT,		PR_EC_BASE+0x32));
-define('PR_EC_STATSTABLE_COMPANY'		, mapi_prop_tag(PT_OBJECT,		PR_EC_BASE+0x33));
+define('PR_EC_STATSTABLE_SYSTEM'                      ,mapi_prop_tag(PT_OBJECT,      PR_EC_BASE+0x30));
+define('PR_EC_STATSTABLE_SESSIONS'                    ,mapi_prop_tag(PT_OBJECT,      PR_EC_BASE+0x31));
+define('PR_EC_STATSTABLE_USERS'                       ,mapi_prop_tag(PT_OBJECT,      PR_EC_BASE+0x32));
+define('PR_EC_STATSTABLE_COMPANY'                     ,mapi_prop_tag(PT_OBJECT,      PR_EC_BASE+0x33));
 
-define('PR_EC_STATS_SYSTEM_DESCRIPTION'	,mapi_prop_tag(PT_STRING8,	PR_EC_BASE+0x40));
-define('PR_EC_STATS_SYSTEM_VALUE'		,mapi_prop_tag(PT_STRING8,	PR_EC_BASE+0x41));
-define('PR_EC_STATS_SESSION_ID'			,mapi_prop_tag(PT_LONG,		PR_EC_BASE+0x42));
-define('PR_EC_STATS_SESSION_IPADDRESS'	,mapi_prop_tag(PT_STRING8,	PR_EC_BASE+0x43));
-define('PR_EC_STATS_SESSION_IDLETIME'	,mapi_prop_tag(PT_LONG,		PR_EC_BASE+0x44));
-define('PR_EC_STATS_SESSION_CAPABILITY'	,mapi_prop_tag(PT_LONG,		PR_EC_BASE+0x45));
-define('PR_EC_STATS_SESSION_LOCKED'		,mapi_prop_tag(PT_BOOLEAN,	PR_EC_BASE+0x46));
-define('PR_EC_STATS_SESSION_BUSYSTATES'	,mapi_prop_tag(PT_MV_STRING8,	PR_EC_BASE+0x47));
-define('PR_EC_COMPANY_NAME', mapi_prop_tag(PT_STRING8,	PR_EC_BASE+0x48));
+define('PR_EC_STATS_SYSTEM_DESCRIPTION'               ,mapi_prop_tag(PT_STRING8,     PR_EC_BASE+0x40));
+define('PR_EC_STATS_SYSTEM_VALUE'                     ,mapi_prop_tag(PT_STRING8,     PR_EC_BASE+0x41));
+define('PR_EC_STATS_SESSION_ID'                       ,mapi_prop_tag(PT_LONG,        PR_EC_BASE+0x42));
+define('PR_EC_STATS_SESSION_IPADDRESS'                ,mapi_prop_tag(PT_STRING8,     PR_EC_BASE+0x43));
+define('PR_EC_STATS_SESSION_IDLETIME'                 ,mapi_prop_tag(PT_LONG,        PR_EC_BASE+0x44));
+define('PR_EC_STATS_SESSION_CAPABILITY'               ,mapi_prop_tag(PT_LONG,        PR_EC_BASE+0x45));
+define('PR_EC_STATS_SESSION_LOCKED'                   ,mapi_prop_tag(PT_BOOLEAN,     PR_EC_BASE+0x46));
+define('PR_EC_STATS_SESSION_BUSYSTATES'               ,mapi_prop_tag(PT_MV_STRING8,  PR_EC_BASE+0x47));
+define('PR_EC_COMPANY_NAME'                           ,mapi_prop_tag(PT_STRING8,     PR_EC_BASE+0x48));
+
+/* WA properties */
+define('PR_EC_WA_ATTACHMENT_HIDDEN_OVERRIDE'          ,mapi_prop_tag(PT_BOOLEAN,     PR_EC_BASE+0xE0));
 
 // edkmdb, rules properties
 #define pidSpecialMin                                   0x6670
@@ -1176,56 +1179,64 @@ define('PR_RULE_LEVEL'                                ,mapi_prop_tag(PT_LONG,   
 define('PR_RULE_PROVIDER_DATA'                        ,mapi_prop_tag(PT_BINARY,      0x6670+0x14));
 
 // edkmdb, ICS properties
-define('PR_SOURCE_KEY'								  ,mapi_prop_tag(PT_BINARY, 	0x65E0+0x00));
-define('PR_PARENT_SOURCE_KEY'						  ,mapi_prop_tag(PT_BINARY, 	0x65E0+0x01));
-define('PR_CHANGE_KEY'								  ,mapi_prop_tag(PT_BINARY, 	0x65E0+0x02));
-define('PR_PREDECESSOR_CHANGE_LIST'					  ,mapi_prop_tag(PT_BINARY, 	0x65E0+0x03));
+define('PR_SOURCE_KEY'                                ,mapi_prop_tag(PT_BINARY,      0x65E0+0x00));
+define('PR_PARENT_SOURCE_KEY'                         ,mapi_prop_tag(PT_BINARY,      0x65E0+0x01));
+define('PR_CHANGE_KEY'                                ,mapi_prop_tag(PT_BINARY,      0x65E0+0x02));
+define('PR_PREDECESSOR_CHANGE_LIST'                   ,mapi_prop_tag(PT_BINARY,      0x65E0+0x03));
 
 
-define('PR_PROCESS_MEETING_REQUESTS',           mapi_prop_tag(PT_BOOLEAN, 0x686D));
-define('PR_DECLINE_RECURRING_MEETING_REQUESTS', mapi_prop_tag(PT_BOOLEAN, 0x686E));
-define('PR_DECLINE_CONFLICTING_MEETING_REQUESTS', mapi_prop_tag(PT_BOOLEAN, 0x686F));
+define('PR_PROCESS_MEETING_REQUESTS'                  ,mapi_prop_tag(PT_BOOLEAN,     0x686D));
+define('PR_DECLINE_RECURRING_MEETING_REQUESTS'        ,mapi_prop_tag(PT_BOOLEAN,     0x686E));
+define('PR_DECLINE_CONFLICTING_MEETING_REQUESTS'      ,mapi_prop_tag(PT_BOOLEAN,     0x686F));
 
 
-define('PR_PROPOSEDNEWTIME', mapi_prop_tag(PT_BOOLEAN, 0x5FE1));
-define('PR_PROPOSENEWTIME_START', mapi_prop_tag(PT_SYSTIME, 0x5FE3));
-define('PR_PROPOSENEWTIME_END', mapi_prop_tag(PT_SYSTIME, 0x5FE4));
+define('PR_PROPOSEDNEWTIME'                           ,mapi_prop_tag(PT_BOOLEAN,     0x5FE1));
+define('PR_PROPOSENEWTIME_START'                      ,mapi_prop_tag(PT_SYSTIME,     0x5FE3));
+define('PR_PROPOSENEWTIME_END'                        ,mapi_prop_tag(PT_SYSTIME,     0x5FE4));
 
 // property for sort the recoverable items.
-define('PR_DELETED_ON', mapi_prop_tag(PT_SYSTIME, 0x668F));
+define('PR_DELETED_ON'                                ,mapi_prop_tag(PT_SYSTIME,     0x668F));
 
-define('PR_PROCESSED', mapi_prop_tag(PT_BOOLEAN, 0x7D01));
+define('PR_PROCESSED'                                 ,mapi_prop_tag(PT_BOOLEAN,     0x7D01));
 
 // Delegates properties
-define('PR_DELEGATES_SEE_PRIVATE', mapi_prop_tag(PT_MV_LONG, 0x686B));
-define('PR_SCHDINFO_DELEGATE_ENTRYIDS', mapi_prop_tag(PT_MV_BINARY, 0x6845));
-define('PR_SCHDINFO_DELEGATE_NAMES', mapi_prop_tag(PT_MV_STRING8, 0x6844));
-define('PR_DELEGATED_BY_RULE', mapi_prop_tag(PT_BOOLEAN, 0x3FE3));
+define('PR_DELEGATES_SEE_PRIVATE'                     ,mapi_prop_tag(PT_MV_LONG,     0x686B));
+define('PR_SCHDINFO_DELEGATE_ENTRYIDS'                ,mapi_prop_tag(PT_MV_BINARY,   0x6845));
+define('PR_SCHDINFO_DELEGATE_NAMES'                   ,mapi_prop_tag(PT_MV_STRING8,  0x6844));
+define('PR_DELEGATED_BY_RULE'                         ,mapi_prop_tag(PT_BOOLEAN,     0x3FE3));
 
 // properties required in Reply mail.
-define('PR_INTERNET_REFERENCES', mapi_prop_tag(PT_STRING8, 0x1039));
-define('PR_IN_REPLY_TO_ID', mapi_prop_tag(PT_STRING8, 0x1042));
-define('PR_INTERNET_MESSAGE_ID', mapi_prop_tag(PT_STRING8, 0x1035));
+define('PR_INTERNET_REFERENCES'                       ,mapi_prop_tag(PT_STRING8,     0x1039));
+define('PR_IN_REPLY_TO_ID'                            ,mapi_prop_tag(PT_STRING8,     0x1042));
+define('PR_INTERNET_MESSAGE_ID'                       ,mapi_prop_tag(PT_STRING8,     0x1035));
 
 // for hidden folders
-define('PR_ATTR_HIDDEN', mapi_prop_tag(PT_BOOLEAN, 0x10F4));
+define('PR_ATTR_HIDDEN'                               ,mapi_prop_tag(PT_BOOLEAN,     0x10F4));
 
 /**
  * Addressbook detail properties.
  * It is not defined by MAPI, but to keep in sync with the interface of outlook we have to use these
  * properties. Outlook actually uses these properties for it's addressbook details.
  */
-define('PR_HOME2_TELEPHONE_NUMBER_MV'         ,mapi_prop_tag(PT_MV_TSTRING, 0x3A2F));
-define('PR_BUSINESS2_TELEPHONE_NUMBER_MV'     ,mapi_prop_tag(PT_MV_TSTRING, 0x3A1B));
-define('PR_EMS_AB_PROXY_ADDRESSES'            ,mapi_prop_tag(PT_TSTRING,    0x800F));
-define('PR_EMS_AB_PROXY_ADDRESSES_MV'         ,mapi_prop_tag(PT_MV_TSTRING, 0x800F));
-define('PR_EMS_AB_MANAGER'                    ,mapi_prop_tag(PT_BINARY,     0x8005));
-define('PR_EMS_AB_REPORTS'                    ,mapi_prop_tag(PT_BINARY,     0x800E));
-define('PR_EMS_AB_REPORTS_MV'                 ,mapi_prop_tag(PT_MV_BINARY,  0x800E));
-define('PR_EMS_AB_IS_MEMBER_OF_DL'            ,mapi_prop_tag(PT_MV_BINARY,  0x8008));
-define('PR_EMS_AB_OWNER'                      ,mapi_prop_tag(PT_BINARY,     0x800C));
+define('PR_HOME2_TELEPHONE_NUMBER_MV'                 ,mapi_prop_tag(PT_MV_TSTRING,  0x3A2F));
+define('PR_BUSINESS2_TELEPHONE_NUMBER_MV'             ,mapi_prop_tag(PT_MV_TSTRING,  0x3A1B));
+define('PR_EMS_AB_PROXY_ADDRESSES'                    ,mapi_prop_tag(PT_TSTRING,     0x800F));
+define('PR_EMS_AB_PROXY_ADDRESSES_MV'                 ,mapi_prop_tag(PT_MV_TSTRING,  0x800F));
+define('PR_EMS_AB_MANAGER'                            ,mapi_prop_tag(PT_BINARY,      0x8005));
+define('PR_EMS_AB_REPORTS'                            ,mapi_prop_tag(PT_BINARY,      0x800E));
+define('PR_EMS_AB_REPORTS_MV'                         ,mapi_prop_tag(PT_MV_BINARY,   0x800E));
+define('PR_EMS_AB_IS_MEMBER_OF_DL'                    ,mapi_prop_tag(PT_MV_BINARY,   0x8008));
+define('PR_EMS_AB_OWNER'                              ,mapi_prop_tag(PT_BINARY,      0x800C));
+define('PR_EMS_AB_ROOM_CAPACITY'                      ,mapi_prop_tag(PT_LONG,        0x0807));
+
+define('PR_EC_ARCHIVE_SERVERS'                        ,mapi_prop_tag(PT_MV_TSTRING,  0x67c4));
+
+/* zarafa contacts provider properties */
+define('PR_ZC_CONTACT_STORE_ENTRYIDS'                 ,mapi_prop_tag(PT_MV_BINARY,   PR_EC_BASE+0x11));
+define('PR_ZC_CONTACT_FOLDER_ENTRYIDS'                ,mapi_prop_tag(PT_MV_BINARY,   PR_EC_BASE+0x12));
+define('PR_ZC_CONTACT_FOLDER_NAMES'                   ,mapi_prop_tag(PT_MV_TSTRING,  PR_EC_BASE+0x13));
 
 //Properties defined for Z-Push
-define('PR_TODO_ITEM_FLAGS'                   ,mapi_prop_tag(PT_LONG,       0x0E2B));
+define('PR_TODO_ITEM_FLAGS'                           ,mapi_prop_tag(PT_LONG,        0x0E2B));
 
 ?>

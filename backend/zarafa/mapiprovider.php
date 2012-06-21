@@ -714,7 +714,7 @@ class MAPIProvider {
             $message->importance = IMPORTANCE_NORMAL;
 
         //TODO contentclass and nativebodytype and internetcpid
-        $message->internetcpid = (defined('STORE_INTERNET_CPID')) ? constant('STORE_INTERNET_CPID') : INTERNET_CPID_WINDOWS1252;
+        if (!isset($message->internetcpid)) $message->internetcpid = (defined('STORE_INTERNET_CPID')) ? constant('STORE_INTERNET_CPID') : INTERNET_CPID_WINDOWS1252;
         $this->setFlag($mapimessage, $message);
         $message->contentclass = DEFAULT_EMAIL_CONTENTCLASS;
         if (!isset($message->nativebodytype)) $message->nativebodytype = $this->getNativeBodyType($messageprops);
@@ -2129,7 +2129,9 @@ class MAPIProvider {
         if (Request::GetProtocolVersion() >= 12.0) {
             $message->asbody = new SyncBaseBody();
             $message->asbody->type = $bpReturnType;
-            $message->asbody->data = ($bpReturnType == SYNC_BODYPREFERENCE_RTF) ? base64_encode($body) : w2u($body);
+            $message->asbody->data = ($bpReturnType == SYNC_BODYPREFERENCE_RTF) ? base64_encode($body) :
+                (isset($message->internetcpid) && $message->internetcpid == INTERNET_CPID_WINDOWS1252 && $bpReturnType == SYNC_BODYPREFERENCE_HTML) ?
+                   windows1252_to_utf8($body, "", true) : w2u($body);
             $message->asbody->estimatedDataSize = strlen($message->asbody->data);
             $message->asbody->truncated = 0;
         }

@@ -397,10 +397,10 @@ class Sync extends RequestProcessor {
                                 default:
                                     // get the importer
                                     if ($this->importer == false)
-                                        $status = $this->getImporter($sc, $spa, &$actiondata);
+                                        $status = $this->getImporter($sc, $spa, $actiondata);
 
                                     if ($status == SYNC_STATUS_SUCCESS)
-                                        $this->importMessage($spa, &$actiondata, $element[EN_TAG], $message, $clientid, $serverid);
+                                        $this->importMessage($spa, $actiondata, $element[EN_TAG], $message, $clientid, $serverid);
 
                                     break;
                             }
@@ -573,7 +573,7 @@ class Sync extends RequestProcessor {
                     foreach ($sc->GetChangedFolderIds() as $folderid => $changecount) {
                         // check if there were other sync requests for a folder during the heartbeat
                         $spa = $sc->GetCollection($folderid);
-                        if ($changecount > 0 && self::$deviceManager->CheckHearbeatStateIntegrity($spa->GetFolderId(), $spa->GetUuid(), $spa->GetUuidCounter())) {
+                        if ($changecount > 0 && $sc->WaitedForChanges() && self::$deviceManager->CheckHearbeatStateIntegrity($spa->GetFolderId(), $spa->GetUuid(), $spa->GetUuidCounter())) {
                             ZLog::Write(LOGLEVEL_DEBUG, sprintf("HandleSync(): heartbeat: found %d changes in '%s' which was already synchronized. Heartbeat aborted!", $changecount, $folderid));
                             $status = SYNC_COMMONSTATUS_SYNCSTATEVERSIONINVALID;
                         }

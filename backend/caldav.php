@@ -189,7 +189,6 @@ class BackendCalDAV extends BackendDiff {
 
 		/* Calculating the range of events we want to sync */
 		$begin = gmdate("Ymd\THis\Z", $cutoffdate);
-		$diff = time() - $cutoffdate;
 		$finish = gmdate("Ymd\THis\Z", 2147483647);
 
 		$path = $this->_caldav_path . substr($folderid, 1) . "/";

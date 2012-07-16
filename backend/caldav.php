@@ -892,7 +892,7 @@ class BackendCalDAV extends BackendDiff {
 		}
 		if (isset($rec->until))
 		{
-			$rrule[] = "UNTIL=" . $rec->until;
+			$rrule[] = "UNTIL=" . gmdate("Ymd\THis\Z", $rec->until);
 		}
 		if (isset($rec->occurrences))
 		{

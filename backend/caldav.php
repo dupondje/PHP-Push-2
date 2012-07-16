@@ -188,9 +188,9 @@ class BackendCalDAV extends BackendDiff {
 		ZLog::Write(LOGLEVEL_DEBUG, sprintf("BackendCalDAV->GetMessageList('%s','%s')", $folderid, $cutoffdate));
 
 		/* Calculating the range of events we want to sync */
-		$begin = date("Ymd\THis\Z", $cutoffdate);
+		$begin = gmdate("Ymd\THis\Z", $cutoffdate);
 		$diff = time() - $cutoffdate;
-		$finish = date("Ymd\THis\Z", 2147483647);
+		$finish = gmdate("Ymd\THis\Z", 2147483647);
 
 		$path = $this->_caldav_path . substr($folderid, 1) . "/";
 		if ($folderid[0] == "C")

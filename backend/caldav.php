@@ -705,16 +705,16 @@ class BackendCalDAV extends BackendDiff {
 		{
 			$vevent = $this->_ParseASEventToVEvent($data, $id);
 			$vevent->AddProperty("UID", $id);
+			$ical->AddComponent($vevent);
 			if (isset($data->exception) && is_array($data->exception))
 			{
 				foreach ($data->exception as $ex)
 				{
 					$exception = $this->_ParseASEventToVEvent($ex, $id);
 					$exception->AddProperty("RECURRENCE-ID", $ex->exceptionstarttime);
-					$vevent->AddComponent($exception);
+					$ical->AddComponent($exception);
 				}
 			}
-			$ical->AddComponent($vevent);
 		}
 		if ($folderid[0] == "T")
 		{

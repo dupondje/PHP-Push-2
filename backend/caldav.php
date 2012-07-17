@@ -372,7 +372,11 @@ class BackendCalDAV extends BackendDiff {
 				$exception->exceptionstarttime = $this->_MakeUTCDate($recurrence_id->Value(), $tzid);
 				$exception->deleted = "0";
 				$exception = $this->_ParseVEventToSyncObject($event, $exception, $truncsize);
-				$message->exception[] = $exception;
+				if (!isset($message->exceptions))
+				{
+					$message->exceptions = array();
+				}
+				$message->exceptions[] = $exception;
 			}
 			else
 			{
@@ -528,14 +532,11 @@ class BackendCalDAV extends BackendDiff {
 					$exception = new SyncAppointmentException();
 					$exception->deleted = "1";
 					$exception->exceptionstarttime = $this->_MakeUTCDate($property->Value());
-					if (isset($message->exception) && is_array($message->exception))
+					if (!isset($message->exceptions))
 					{
-						$message->exception[] = $exception;
+						$message->exceptions = array();
 					}
-					else
-					{
-						$message->exception = array($exception);
-					}
+					$message->exceptions[] = $exception;
 					break;
 				
 				//We can ignore the following
@@ -706,9 +707,9 @@ class BackendCalDAV extends BackendDiff {
 			$vevent = $this->_ParseASEventToVEvent($data, $id);
 			$vevent->AddProperty("UID", $id);
 			$ical->AddComponent($vevent);
-			if (isset($data->exception) && is_array($data->exception))
+			if (isset($data->exceptions) && is_array($data->exceptions))
 			{
-				foreach ($data->exception as $ex)
+				foreach ($data->exceptions as $ex)
 				{
 					$exception = $this->_ParseASEventToVEvent($ex, $id);
 					$exception->AddProperty("RECURRENCE-ID", $ex->exceptionstarttime);

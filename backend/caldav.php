@@ -713,6 +713,7 @@ class BackendCalDAV extends BackendDiff {
 				{
 					$exception = $this->_ParseASEventToVEvent($ex, $id);
 					$exception->AddProperty("RECURRENCE-ID", gmdate("Ymd\THis\Z", $ex->exceptionstarttime));
+					$exception->AddProperty("UID", $id);
 					$ical->AddComponent($exception);
 				}
 			}
@@ -746,7 +747,14 @@ class BackendCalDAV extends BackendDiff {
 		}
 		if (isset($data->starttime))
 		{
-			$vevent->AddProperty("DTSTART", gmdate("Ymd\THis\Z", $data->starttime));
+			if ($data->alldayevent == 1)
+			{
+				$vevent->AddProperty("DTSTART", gmdate("Ymd", $data->starttime), array("VALUE" => "DATE"));
+			}
+			else
+			{
+				$vevent->AddProperty("DTSTART", gmdate("Ymd\THis\Z", $data->starttime));
+			}
 		}
 		if (isset($data->subject))
 		{
@@ -769,7 +777,14 @@ class BackendCalDAV extends BackendDiff {
 		}
 		if (isset($data->endtime))
 		{
-			$vevent->AddProperty("DTEND", gmdate("Ymd\THis\Z", $data->endtime));
+			if ($data->alldayevent == 1)
+			{
+				$vevent->AddProperty("DTEND", gmdate("Ymd", $data->endtime), array("VALUE" => "DATE"));
+			}
+			else
+			{
+				$vevent->AddProperty("DTEND", gmdate("Ymd\THis\Z", $data->endtime));
+			}
 		}
 		if (isset($data->recurrence))
 		{

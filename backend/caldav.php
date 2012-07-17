@@ -1249,8 +1249,8 @@ class BackendCalDAV extends BackendDiff {
 	private function _GetDateFromUTC($date, $format, $tz_str)
 	{
 		$timezone = $this->_GetTimezoneFromString($tz_str);
-		$dt = date_create_from_format('Ymd\THis\Z', $date, timezone_open("UTC"));
-		date_timezone_set($dt, timezone_open($timezone);
+		$dt = date_create('@' . $date);
+		date_timezone_set($dt, timezone_open($timezone));
 		return date_format($dt, $format);
 	}
 	

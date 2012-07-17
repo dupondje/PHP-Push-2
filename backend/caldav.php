@@ -1246,7 +1246,7 @@ class BackendCalDAV extends BackendDiff {
 		return date_timestamp_get($date);
 	}
 
-	private function _GetDateFromUTC($date, $format, $tz_str)
+	private function _GetDateFromUTC($format, $date, $tz_str)
 	{
 		$timezone = $this->_GetTimezoneFromString($tz_str);
 		$dt = date_create('@' . $date);
@@ -1331,15 +1331,13 @@ class BackendCalDAV extends BackendDiff {
 				$stdTime = $trans[1];
 			}
 			$stdTimeO = new DateTime($stdTime['time']);
-			$stdFirst = new DateTime(sprintf("first sun of %s %s", $stdTimeO->format('F'), $stdTimeO->format('Y')));
-			$stdInterval = $stdTimeO->diff($stdFirst);
-			$stdDays = $stdInterval->format('%d');
+			$stdFirst = new DateTime(sprintf("first sun of %s %s", $stdTimeO->format('F'), $stdTimeO->format('Y')), timezone_open("UTC"));
 			$stdBias = $stdTime['offset'] / -60;
 			$stdName = $stdTime['abbr'];
 			$stdYear = 0;
 			$stdMonth = $stdTimeO->format('n');
-			$stdWeek = floor($stdDays/7)+1;
-			$stdDay = $stdDays%7;
+			$stdWeek = floor($stdTimeO->format("j")-$stdFirst->format("j"))/7)+1;
+			$stdDay = $stdTimeO->format('w');
 			$stdHour = $stdTimeO->format('H');
 			$stdMinute = $stdTimeO->format('i');
 			$stdTimeO->add(new DateInterval('P7D'));
@@ -1348,16 +1346,15 @@ class BackendCalDAV extends BackendDiff {
 				$stdWeek = 5;
 			}
 			$dstTimeO = new DateTime($dstTime['time']);
-			$dstFirst = new DateTime(sprintf("first sun of %s %s", $dstTimeO->format('F'), $dstTimeO->format('Y')));
-			$dstInterval = $dstTimeO->diff($dstFirst);
-			$dstDays = $dstInterval->format('%d');
+			$dstFirst = new DateTime(sprintf("first sun of %s %s", $dstTimeO->format('F'), $dstTimeO->format('Y')), timezone_open("UTC"));
 			$dstName = $dstTime['abbr'];
 			$dstYear = 0;
 			$dstMonth = $dstTimeO->format('n');
-			$dstWeek = floor($dstDays/7)+1;
-			$dstDay = $dstDays%7;
+			$dstWeek = floor(($dstTimeO->format("j")-$dstFirst->format("j"))/7)+1;
+			$dstDay = $dstTimeO->format('w');
 			$dstHour = $dstTimeO->format('H');
 			$dstMinute = $dstTimeO->format('i');
+			$dstTimeO->add(new DateInterval('P7D'));
 			if ($dstTimeO->format('n') != $dstMonth)
 			{
 				$dstWeek = 5;

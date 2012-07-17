@@ -712,7 +712,7 @@ class BackendCalDAV extends BackendDiff {
 				foreach ($data->exceptions as $ex)
 				{
 					$exception = $this->_ParseASEventToVEvent($ex, $id);
-					$exception->AddProperty("RECURRENCE-ID", $ex->exceptionstarttime);
+					$exception->AddProperty("RECURRENCE-ID", gmdate("Ymd\THis\Z", $ex->exceptionstarttime));
 					$ical->AddComponent($exception);
 				}
 			}

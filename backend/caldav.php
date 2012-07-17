@@ -714,7 +714,7 @@ class BackendCalDAV extends BackendDiff {
 					$exception = $this->_ParseASEventToVEvent($ex, $id);
 					if ($data->alldayevent == 1)
 					{
-						$exception->AddProperty("RECURRENCE-ID", gmdate("Ymd", $ex->exceptionstarttime), array("VALUE" => "DATE"));
+						$exception->AddProperty("RECURRENCE-ID", $this->_GetDateFromUTC("Ymd", $ex->exceptionstarttime, $data->timezone), array("VALUE" => "DATE"));
 					}
 					else
 					{
@@ -756,7 +756,7 @@ class BackendCalDAV extends BackendDiff {
 		{
 			if ($data->alldayevent == 1)
 			{
-				$vevent->AddProperty("DTSTART", gmdate("Ymd", $data->starttime), array("VALUE" => "DATE"));
+				$vevent->AddProperty("DTSTART", $this->_GetDateFromUTC("Ymd", $data->starttime, $data->timezone), array("VALUE" => "DATE"));
 			}
 			else
 			{
@@ -786,7 +786,7 @@ class BackendCalDAV extends BackendDiff {
 		{
 			if ($data->alldayevent == 1)
 			{
-				$vevent->AddProperty("DTEND", gmdate("Ymd", $data->endtime), array("VALUE" => "DATE"));
+				$vevent->AddProperty("DTEND", $this->_GetDateFromUTC("Ymd", $data->endtime, $data->timezone), array("VALUE" => "DATE"));
 			}
 			else
 			{
@@ -1245,6 +1245,14 @@ class BackendCalDAV extends BackendDiff {
 		}
 		return date_timestamp_get($date);
 	}
+
+	private function _GetDateFromUTC($date, $format, $tz_str)
+	{
+		$timezone = $this->_GetTimezoneFromString($tz_str);
+		$dt = date_create_from_format('Ymd\THis\Z', $date, timezone_open("UTC"));
+		date_timezone_set($dt, timezone_open($timezone);
+		return date_format($dt, $format);
+	}
 	
 	/**
 	 * Generate a tzid from various formats
@@ -1269,6 +1277,26 @@ class BackendCalDAV extends BackendDiff {
 			return $matches[1] . "/" . $matches[2];
 		}
 		return trim($timezone, '"');
+	}
+
+	//This returns a timezone that matches the timezonestring.
+	//We can't be sure this is the one you chose, as multiple timezones have same timezonestring
+	private function _GetTimezoneFromString($tz_string)
+	{
+		//Get a list of all timezones
+		$identifiers = DateTimeZone::listIdentifiers();
+		//Try the default timezone first
+		array_unshift($identifiers, date_default_timezone_get());
+		foreach ($identifiers as $tz)
+		{
+			$str = $this->_GetTimezoneString($tz, false);
+			if ($str == $tz_string)
+			{
+				ZLog::Write(LOGLEVEL_DEBUG, sprintf("BackendCalDAV->_GetTimezoneFromString(): Found timezone: '%s'.", $tz));
+				return $tz;
+			}
+		}
+		return date_default_timezone_get();
 	}
 
 	/**

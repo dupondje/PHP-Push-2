@@ -1336,7 +1336,7 @@ class BackendCalDAV extends BackendDiff {
 			$stdName = $stdTime['abbr'];
 			$stdYear = 0;
 			$stdMonth = $stdTimeO->format('n');
-			$stdWeek = floor($stdTimeO->format("j")-$stdFirst->format("j"))/7)+1;
+			$stdWeek = floor(($stdTimeO->format("j")-$stdFirst->format("j"))/7)+1;
 			$stdDay = $stdTimeO->format('w');
 			$stdHour = $stdTimeO->format('H');
 			$stdMinute = $stdTimeO->format('i');

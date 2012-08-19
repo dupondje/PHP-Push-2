@@ -94,6 +94,7 @@ class Request {
     static private $longId; //TODO
     static private $occurence; //TODO
     static private $saveInSent;
+    static private $acceptMultipart;
 
 
     /**
@@ -113,7 +114,7 @@ class Request {
 
         // getUser is unfiltered, as everything is allowed.. even "/", "\" or ".."
         if(isset($_GET["User"]))
-            self::$getUser = $_GET["User"];
+            self::$getUser = strtolower($_GET["User"]);
         if(isset($_GET["DeviceId"]))
             self::$devid = self::filterEvilInput($_GET["DeviceId"], self::WORDCHAR_ONLY);
         if(isset($_GET["DeviceType"]))
@@ -140,7 +141,7 @@ class Request {
                 self::$command = Utils::GetCommandFromCode($query['Command']);
 
             if (!isset(self::$getUser) && isset($query[self::COMMANDPARAM_USER]))
-                self::$getUser = $query[self::COMMANDPARAM_USER];
+                self::$getUser = strtolower($query[self::COMMANDPARAM_USER]);
 
             if (!isset(self::$devid) && isset($query['DevID']))
                 self::$devid = self::filterEvilInput($query['DevID'], self::WORDCHAR_ONLY);
@@ -163,13 +164,16 @@ class Request {
             if (isset($query[self::COMMANDPARAM_ITEMID]))
                 self::$itemId = self::filterEvilInput($query[self::COMMANDPARAM_ITEMID], self::HEX_ONLY);
 
-            if (isset($query[self::COMMANDPARAM_OPTIONS]) && ($query[self::COMMANDPARAM_OPTIONS] & 1))
+            if (isset($query[self::COMMANDPARAM_OPTIONS]) && (ord($query[self::COMMANDPARAM_OPTIONS]) & self::COMMANDPARAM_OPTIONS_SAVEINSENT))
                 self::$saveInSent = true;
+
+            if (isset($query[self::COMMANDPARAM_OPTIONS]) && (ord($query[self::COMMANDPARAM_OPTIONS]) & self::COMMANDPARAM_OPTIONS_ACCEPTMULTIPART))
+                self::$acceptMultipart = true;
         }
 
         // in base64 encoded query string user is not necessarily set
         if (!isset(self::$getUser) && isset($_SERVER['PHP_AUTH_USER']))
-            list(self::$getUser,) = Utils::SplitDomainUser($_SERVER['PHP_AUTH_USER']);
+            list(self::$getUser,) = Utils::SplitDomainUser(strtolower($_SERVER['PHP_AUTH_USER']));
     }
 
     /**
@@ -201,6 +205,11 @@ class Request {
             if (isset(self::$asProtocolVersion))
                 self::$headers["ms-asprotocolversion"] = self::$asProtocolVersion;
         }
+
+        if (!isset(self::$acceptMultipart) && isset(self::$headers["ms-asacceptmultipart"]) && strtoupper(self::$headers["ms-asacceptmultipart"]) == "T") {
+            self::$acceptMultipart = true;
+        }
+
         ZLog::Write(LOGLEVEL_DEBUG, sprintf("Request::ProcessHeaders() ASVersion: %s", self::$asProtocolVersion));
     }
 
@@ -214,6 +223,7 @@ class Request {
         // split username & domain if received as one
         if (isset($_SERVER['PHP_AUTH_USER'])) {
             list(self::$authUser, self::$authDomain) = Utils::SplitDomainUser($_SERVER['PHP_AUTH_USER']);
+            self::$authUser = strtolower(self::$authUser);
             self::$authPassword = (isset($_SERVER['PHP_AUTH_PW']))?$_SERVER['PHP_AUTH_PW'] : "";
         }
         // authUser & authPassword are unfiltered!
@@ -314,6 +324,19 @@ class Request {
             return self::$saveInSent;
         else
             return true;
+    }
+
+    /**
+    * Returns if the AcceptMultipart parameter of the querystring is set
+    *
+    * @access public
+    * @return boolean
+    */
+    static public function GetGETAcceptMultipart() {
+        if (isset(self::$acceptMultipart))
+            return self::$acceptMultipart;
+        else
+            return false;
     }
 
     /**

@@ -1,15 +1,12 @@
 <?php
 /***********************************************
-* File      :   syncitemoperationsattachment.php
+* File      :   paddingfilter.php
 * Project   :   Z-Push
-* Descr     :   WBXML ItemOperations attachment entities that can be parsed
-*               directly (as a stream) from WBXML.
-*               It is automatically decoded according to $mapping,
-*               and the Sync WBXML mappings.
+* Descr     :   Our own filter for stream padding with zero strings.
 *
-* Created   :   24.11.2011
+* Created   :   18.07.2012
 *
-* Copyright 2007 - 2011 Zarafa Deutschland GmbH
+* Copyright 2007 - 2012 Zarafa Deutschland GmbH
 *
 * This program is free software: you can redistribute it and/or modify
 * it under the terms of the GNU Affero General Public License, version 3,
@@ -44,19 +41,61 @@
 * Consult LICENSE file for details
 ************************************************/
 
-class SyncItemOperationsAttachment extends SyncObject {
-    public $contenttype;
-    public $data;
+/* Define our filter class
+ *
+ * Usage: stream_filter_append($stream, 'padding.X');
+ * where X is a number a stream will be padded to be
+ * multiple of (e.g. padding.3 will pad the stream
+ * to be multiple of 3 which is useful in base64
+ * encoding).
+ *
+ * */
+class padding_filter extends php_user_filter {
+    private $padding = 4; // default padding
 
-    function SyncItemOperationsAttachment() {
-        $mapping = array(
-            SYNC_AIRSYNCBASE_CONTENTTYPE                        => array (  self::STREAMER_VAR      => "contenttype"),
-            SYNC_ITEMOPERATIONS_DATA                            => array (  self::STREAMER_VAR      => "data",
-                                                                            self::STREAMER_TYPE     => self::STREAMER_TYPE_STREAM,
-                                                                            self::STREAMER_PROP     => self::STREAMER_TYPE_MULTIPART),
-        );
+    /**
+     * This method is called whenever data is read from or written to the attached stream
+     *
+     * @see php_user_filter::filter()
+     *
+     * @param resource      $in
+     * @param resource      $out
+     * @param int           $consumed
+     * @param boolean       $closing
+     *
+     * @access public
+     * @return int
+     *
+     */
+    function filter($in, $out, &$consumed, $closing) {
+        while ($bucket = stream_bucket_make_writeable($in)) {
+            if ($this->padding != 0 && $bucket->datalen < 8192) {
+                $bucket->data .= str_pad($bucket->data, $this->padding, 0x0);
+            }
+            $consumed += ($this->padding != 0 && $bucket->datalen < 8192) ? ($bucket->datalen + $this->padding) : $bucket->datalen;
+            stream_bucket_append($out, $bucket);
+        }
+        return PSFS_PASS_ON;
+    }
 
-        parent::SyncObject($mapping);
+    /**
+     * Called when creating the filter
+     *
+     * @see php_user_filter::onCreate()
+     *
+     * @access public
+     * @return boolean
+     */
+    function onCreate() {
+        $delim = strrpos($this->filtername, '.');
+        if ($delim !== false) {
+            $padding = substr($this->filtername, $delim + 1);
+            if (is_numeric($padding))
+                $this->padding = $padding;
+        }
+        return true;
     }
 }
+
+stream_filter_register("padding.*", "padding_filter");
 ?>

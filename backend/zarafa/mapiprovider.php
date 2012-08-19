@@ -2129,9 +2129,12 @@ class MAPIProvider {
         if (Request::GetProtocolVersion() >= 12.0) {
             $message->asbody = new SyncBaseBody();
             $message->asbody->type = $bpReturnType;
-            $message->asbody->data = ($bpReturnType == SYNC_BODYPREFERENCE_RTF) ? base64_encode($body) :
-                (isset($message->internetcpid) && $message->internetcpid == INTERNET_CPID_WINDOWS1252 && $bpReturnType == SYNC_BODYPREFERENCE_HTML) ?
-                   windows1252_to_utf8($body, "", true) : w2u($body);
+            if ($bpReturnType == SYNC_BODYPREFERENCE_RTF)
+                $message->asbody->data = base64_encode($body);
+            elseif (isset($message->internetcpid) && $message->internetcpid == INTERNET_CPID_WINDOWS1252 && $bpReturnType == SYNC_BODYPREFERENCE_HTML)
+                $message->asbody->data = windows1252_to_utf8($body, "", true);
+            else
+                $message->asbody->data = w2u($body);
             $message->asbody->estimatedDataSize = strlen($message->asbody->data);
         }
         else {
@@ -2208,6 +2211,11 @@ class MAPIProvider {
             if ($bpo->GetTruncationSize() != false && $bpReturnType != SYNC_BODYPREFERENCE_MIME && $message->asbody->estimatedDataSize > $bpo->GetTruncationSize()) {
                 $message->asbody->data = Utils::Utf8_truncate($message->asbody->data, $bpo->GetTruncationSize());
                 $message->asbody->truncated = 1;
+
+            }
+            // set the preview or windows phones won't show the preview of an email
+            if (Request::GetProtocolVersion() >= 14.0 && $bpo->GetPreview()) {
+                $message->asbody->preview = Utils::Utf8_truncate(MAPIUtils::readPropStream($mapimessage, PR_BODY), $bpo->GetPreview());
             }
         }
         else {

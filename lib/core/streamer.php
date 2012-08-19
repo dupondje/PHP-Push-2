@@ -61,6 +61,7 @@ class Streamer implements Serializable {
     const STREAMER_TYPE_NO_CONTAINER = 7;
     const STREAMER_TYPE_COMMA_SEPARATED = 8;
     const STREAMER_TYPE_SEMICOLON_SEPARATED = 9;
+    const STREAMER_TYPE_MULTIPART = 10;
 
     protected $mapping;
     public $flags;
@@ -101,8 +102,6 @@ class Streamer implements Serializable {
                     else if ($map[self::STREAMER_TYPE] == self::STREAMER_TYPE_DATE || $map[self::STREAMER_TYPE] == self::STREAMER_TYPE_DATE_DASHES ) {
                         $this->$map[self::STREAMER_VAR] = "";
                     }
-                    else if ($map[self::STREAMER_TYPE] == self::STREAMER_TYPE_SEND_EMPTY)
-                        $this->$map[self::STREAMER_VAR] = "";
                     else if (isset($map[self::STREAMER_PROP]) && $map[self::STREAMER_PROP] == self::STREAMER_TYPE_SEND_EMPTY)
                         $this->$map[self::STREAMER_VAR] = "";
                     continue;
@@ -173,11 +172,6 @@ class Streamer implements Serializable {
                                 if(!$decoder->getElementEndTag())
                                     return false;
                             }
-                            else if($map[self::STREAMER_TYPE] == self::STREAMER_TYPE_SEND_EMPTY) {
-                                $decoded = $decoder->getElementContent();
-                                if(!$decoder->getElementEndTag())
-                                    return false;
-                            }
                             else {
                                 $subdecoder = new $map[self::STREAMER_TYPE]();
                                 if($subdecoder->Decode($decoder) === false)
@@ -230,6 +224,8 @@ class Streamer implements Serializable {
      * @access public
      */
     public function Encode(&$encoder) {
+        // A return value if anything was streamed. We need for empty tags.
+        $streamed = false;
         foreach($this->mapping as $tag => $map) {
             if(isset($this->$map[self::STREAMER_VAR])) {
                 // Variable is available
@@ -237,16 +233,18 @@ class Streamer implements Serializable {
                     // Subobjects can do their own encoding
                     if ($this->$map[self::STREAMER_VAR] instanceof Streamer) {
                         $encoder->startTag($tag);
-                        $this->$map[self::STREAMER_VAR]->Encode($encoder);
+                        $res = $this->$map[self::STREAMER_VAR]->Encode($encoder);
                         $encoder->endTag();
+                        // nothing was streamed in previous encode but it should be streamed empty anyway
+                        if (!$res && isset($map[self::STREAMER_PROP]) && $map[self::STREAMER_PROP] == self::STREAMER_TYPE_SEND_EMPTY)
+                            $encoder->startTag($tag, false, true);
                     }
                     else
                         ZLog::Write(LOGLEVEL_ERROR, sprintf("Streamer->Encode(): parameter '%s' of object %s is not of type Streamer", $map[self::STREAMER_VAR], get_class($this)));
                 }
                 // Array of objects
                 else if(isset($map[self::STREAMER_ARRAY])) {
-                    if ((empty($this->$map[self::STREAMER_VAR]) && isset($map[self::STREAMER_TYPE]) && $map[self::STREAMER_TYPE] == self::STREAMER_TYPE_SEND_EMPTY)
-                    || (isset($map[self::STREAMER_PROP]) &&  isset($map[self::STREAMER_PROP]) == self::STREAMER_TYPE_SEND_EMPTY)) {
+                    if (empty($this->$map[self::STREAMER_VAR]) && isset($map[self::STREAMER_PROP]) && $map[self::STREAMER_PROP] == self::STREAMER_TYPE_SEND_EMPTY) {
                         $encoder->startTag($tag, false, true);
                     }
                     else {
@@ -269,6 +267,7 @@ class Streamer implements Serializable {
                                     $encoder->startTag($map[self::STREAMER_ARRAY]);
                                     $encoder->content($element);
                                     $encoder->endTag();
+                                    $streamed = true;
                                 }
                             }
                         }
@@ -282,13 +281,21 @@ class Streamer implements Serializable {
                         continue;
                     }
 
+                    if ($encoder->getMultipart() && isset($map[self::STREAMER_PROP]) && $map[self::STREAMER_PROP] == self::STREAMER_TYPE_MULTIPART) {
+                        $encoder->addBodypartStream($this->$map[self::STREAMER_VAR]);
+                        $encoder->startTag(SYNC_ITEMOPERATIONS_PART);
+                        $encoder->content(count($encoder->getBodypartsCount()));
+                        $encoder->endTag();
+                        continue;
+                    }
+
                     // Simple type
                     if(!isset($map[self::STREAMER_TYPE]) && strlen($this->$map[self::STREAMER_VAR]) == 0) {
-                        if ((isset($map[self::STREAMER_TYPE]) && $map[self::STREAMER_TYPE] == self::STREAMER_TYPE_SEND_EMPTY)
-                        || (isset($map[self::STREAMER_PROP]) &&  isset($map[self::STREAMER_PROP]) == self::STREAMER_TYPE_SEND_EMPTY)) {
+                        // send empty tags
+                        if (isset($map[self::STREAMER_PROP]) && $map[self::STREAMER_PROP] == self::STREAMER_TYPE_SEND_EMPTY)
                             $encoder->startTag($tag, false, true);
-                        }
-                          // Do not output empty items. See above: $encoder->startTag($tag, false, true);
+
+                        // Do not output empty items. See above: $encoder->startTag($tag, false, true);
                         continue;
                     } else
                         $encoder->startTag($tag);
@@ -302,8 +309,13 @@ class Streamer implements Serializable {
                     }
                     else if(isset($map[self::STREAMER_TYPE]) && $map[self::STREAMER_TYPE] == self::STREAMER_TYPE_STREAM) {
                         //encode stream with base64
-                        //TODO stream chunked without loading the complete attachment into memory
                         $stream = $this->$map[self::STREAMER_VAR];
+                        $stat = fstat($stream);
+                        // the padding size muss be calculated for the entire stream,
+                        // the base64 filter seems to process 8192 byte chunks correctly itself
+                        $padding = (isset($stat['size']) && $stat['size'] > 8192) ? ($stat['size'] % 3) : 0;
+
+                        $paddingfilter = stream_filter_append($stream, 'padding.'.$padding);
                         $base64filter = stream_filter_append($stream, 'convert.base64-encode');
                         $d = "";
                         while (!feof($stream)) {
@@ -311,6 +323,7 @@ class Streamer implements Serializable {
                         }
                         $encoder->content($d);
                         stream_filter_remove($base64filter);
+                        stream_filter_remove($paddingfilter);
                     }
                     // implode comma or semicolon arrays into a string
                     else if(isset($map[self::STREAMER_TYPE]) && is_array($this->$map[self::STREAMER_VAR]) &&
@@ -322,12 +335,15 @@ class Streamer implements Serializable {
                         $encoder->content($this->$map[self::STREAMER_VAR]);
                     }
                     $encoder->endTag();
+                    $streamed = true;
                 }
             }
         }
         // Output our own content
         if(isset($this->content))
             $encoder->content($this->content);
+
+        return $streamed;
     }
 
     /**

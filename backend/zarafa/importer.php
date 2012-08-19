@@ -237,7 +237,23 @@ class ImportChangesICS implements IImportChanges {
             $exporter->Config($this->conflictsState);
             $exporter->ConfigContentParameters($this->conflictsContentParameters);
             $exporter->InitializeExporter($this->memChanges);
-            while(is_array($exporter->Synchronize()));
+
+            // monitor how long it takes to export potential conflicts
+            // if this takes "too long" we cancel this operation!
+            $potConflicts = $exporter->GetChangeCount();
+            $started = time();
+            $exported = 0;
+            while(is_array($exporter->Synchronize())) {
+                $exported++;
+
+                // stop if this takes more than 15 seconds and there are more than 5 changes still to be exported
+                // within 20 seconds this should be finished or it will not be performed
+                if ((time() - $started) > 15 && ($potConflicts - $exported) > 5 ) {
+                    ZLog::Write(LOGLEVEL_WARN, sprintf("ImportChangesICS->lazyLoadConflicts(): conflict detection cancelled as operation is too slow. In %d seconds only %d from %d changes were processed.",(time() - $started), $exported, $potConflicts));
+                    $this->conflictsLoaded = true;
+                    return;
+                }
+            }
             $this->conflictsLoaded = true;
         }
     }
@@ -498,11 +514,11 @@ class ImportChangesICS implements IImportChanges {
         if (!$entryid)
             throw new StatusException(sprintf("ImportChangesICS->ImportFolderChange('%s','%s','%s'): Error, unable to open folder (no entry id): 0x%X", Utils::PrintAsString($folder->serverid), $folder->parentid, $displayname, mapi_last_hresult()), SYNC_FSSTATUS_PARENTNOTFOUND);
 
-        $folder = mapi_msgstore_openentry($this->store, $entryid);
-        if (!$folder)
+        $mfolder = mapi_msgstore_openentry($this->store, $entryid);
+        if (!$mfolder)
             throw new StatusException(sprintf("ImportChangesICS->ImportFolderChange('%s','%s','%s'): Error, unable to open folder (open entry): 0x%X", Utils::PrintAsString($folder->serverid), $folder->parentid, $displayname, mapi_last_hresult()), SYNC_FSSTATUS_PARENTNOTFOUND);
 
-        $props =  mapi_getprops($folder, array(PR_SOURCE_KEY, PR_PARENT_SOURCE_KEY, PR_DISPLAY_NAME, PR_CONTAINER_CLASS));
+        $props =  mapi_getprops($mfolder, array(PR_SOURCE_KEY, PR_PARENT_SOURCE_KEY, PR_DISPLAY_NAME, PR_CONTAINER_CLASS));
         if (!isset($props[PR_SOURCE_KEY]) || !isset($props[PR_PARENT_SOURCE_KEY]) || !isset($props[PR_DISPLAY_NAME]) || !isset($props[PR_CONTAINER_CLASS]))
             throw new StatusException(sprintf("ImportChangesICS->ImportFolderChange('%s','%s','%s'): Error, folder data not available: 0x%X", Utils::PrintAsString($folder->serverid), $folder->parentid, $displayname, mapi_last_hresult()), SYNC_FSSTATUS_SERVERERROR);
 
@@ -522,8 +538,8 @@ class ImportChangesICS implements IImportChanges {
             throw new StatusException(sprintf("ImportChangesICS->ImportFolderChange('%s','%s','%s'): Folder was moved to another location, which is currently not supported. Please report this to the Z-Push dev team together with the WBXML log and your device details (model, firmware etc).", Utils::PrintAsString($folder->serverid), $folder->parentid, $displayname, mapi_last_hresult()), SYNC_FSSTATUS_UNKNOWNERROR);
 
         $props = array(PR_DISPLAY_NAME => $displayname);
-        mapi_setprops($folder, $props);
-        mapi_savechanges($folder);
+        mapi_setprops($mfolder, $props);
+        mapi_savechanges($mfolder);
         if (mapi_last_hresult())
             throw new StatusException(sprintf("ImportChangesICS->ImportFolderChange('%s','%s','%s'): Error, mapi_savechanges() failed: 0x%X", Utils::PrintAsString($folder->serverid), $folder->parentid, $displayname, mapi_last_hresult()), SYNC_FSSTATUS_SERVERERROR);
 

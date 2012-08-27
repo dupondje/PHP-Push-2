@@ -93,6 +93,14 @@ class BackendCombinedConfig {
         'CALDAV_PORT' => CALDAV_PORT,
         'CALDAV_PATH' => CALDAV_PATH,
     );
+    
+    // *************************
+    //  BackendCardDAV settings
+    // *************************
+    public static $BackendCardDAV_config = array(
+        'CARDDAV_URL' => CARDDAV_SERVER . ':' . CARDDAV_PORT . CARDDAV_PATH,
+        'CARDDAV_PRINCIPAL' => CARDDAV_PRINCIPAL,
+    );
 
     // *************************
     //  BackendLDAP settings
@@ -145,6 +153,10 @@ class BackendCombinedConfig {
                 'l' => array(
                     'name' => 'BackendLDAP',
                     'config' => self::$BackendLDAP_config,
+                ),
+                'd' => array(
+                    'name' => 'BackendCardDAV',
+                    'config' => self::$BackendCardDAV_config,
                 ),
             ),
             'delimiter' => '/',

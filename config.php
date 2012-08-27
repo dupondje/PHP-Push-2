@@ -174,6 +174,15 @@
     define('CALDAV_PERSONAL', 'home'); //Personal CalDAV folder
 
     // **********************
+    //  BackendCardDAV settings
+    // **********************
+    define('CARDDAV_SERVER', 'http://contacts.domain.com');
+    define('CARDDAV_PORT', '80');
+    define('CARDDAV_PATH', '/caldav.php/%u/');
+    define('CARDDAV_PRINCIPAL', 'addresses'); //Personal CardDAV folder
+
+    
+    // **********************
     //  BackendLDAP settings
     // **********************
     define('LDAP_SERVER', 'localhost');

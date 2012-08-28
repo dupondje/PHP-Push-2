@@ -8,3 +8,7 @@ Requirements: libawl-php
 
 Contacts - LDAP
 Requirements: LDAP Server
+
+Contacts - CardDAV
+Requirements: libawl-php libcurl-php
+Based in: https://github.com/xbgmsharp/sogosync.git

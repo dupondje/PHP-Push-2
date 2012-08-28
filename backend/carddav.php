@@ -42,7 +42,7 @@ class BackendCardDAV extends BackendDiff {
 			return false;
 		}
 
-		$url = str_replace('%u', $username, CARDDAV_URL);
+		$url = str_replace('%u', $username, CARDDAV_SERVER . ':' . CARDDAV_PORT . CARDDAV_PATH);
 		ZLog::Write(LOGLEVEL_INFO, sprintf("BackendCardDAV->Logon('%s')", $url));
 		$this->_carddav = new carddav_backend($url);
 		$this->_carddav->set_auth($username, $password);
@@ -189,7 +189,7 @@ class BackendCardDAV extends BackendDiff {
 		foreach ($xmlvcardlist->element as $vcard)
 		{
 			$id = (string)$vcard->id->__toString();
-			//ZLog::Write(LOGLEVEL_DEBUG, sprintf("BackendCardDAV->GetMessageList(Add vcard to collection '%s')", $vcard->vcard->__toString()));
+			ZLog::Write(LOGLEVEL_DEBUG, sprintf("BackendCardDAV->GetMessageList(Add vcard to collection '%s')", $vcard->vcard->__toString()));
 			$this->_collection[$id] = $vcard;
 			$messagelist[] = $this->StatMessage($folderid, $id);
 		}
@@ -223,6 +223,7 @@ class BackendCardDAV extends BackendDiff {
 				ZLog::Write(LOGLEVEL_WARN, sprintf("BackendCardDAV->GetMessage(): vCard not found"));
 				return false;
 			}
+
 			$xmlvcard = new SimpleXMLElement($xmldata);
 			foreach($xmlvcard->element as $vcard)
 			{
@@ -415,7 +416,7 @@ class BackendCardDAV extends BackendDiff {
 
 		foreach ($mapping as $vcard_attribute => $ms_attribute)
 		{
-			//ZLog::Write(LOGLEVEL_DEBUG, sprintf("BackendCardDAV->_ParseVCardToAS(vCard[%s] => ms[%s])", $vcard_attribute, $ms_attribute));
+			ZLog::Write(LOGLEVEL_DEBUG, sprintf("BackendCardDAV->_ParseVCardToAS(vCard[%s] => ms[%s])", $vcard_attribute, $ms_attribute));
 			if (empty($card[$vcard_attribute]))
 			{
 				continue;

@@ -98,9 +98,9 @@ class BackendCombinedConfig {
     //  BackendCardDAV settings
     // *************************
     public static $BackendCardDAV_config = array(
-	'CARDDAV_SERVER' => CARDDAV_SERVER,
-	'CARDDAV_PORT' => CARDDAV_PORT,
-	'CARDDAV_PATH' => CARDDAV_PATH,
+        'CARDDAV_SERVER' => CARDDAV_SERVER,
+        'CARDDAV_PORT' => CARDDAV_PORT,
+        'CARDDAV_PATH' => CARDDAV_PATH,
         'CARDDAV_PRINCIPAL' => CARDDAV_PRINCIPAL,
     );
 

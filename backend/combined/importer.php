@@ -244,8 +244,8 @@ class ImportChangesCombined implements IImportChanges {
     public function Config($state, $flags = 0) {
         ZLog::Write(LOGLEVEL_DEBUG, 'ImportChangesCombined->Config(...)');
         if (!$this->icc) {
-	    ZLog::Write(LOGLEVEL_ERROR, "ImportChangesCombined->Config() icc not configured");
-	    return false;
+            ZLog::Write(LOGLEVEL_ERROR, "ImportChangesCombined->Config() icc not configured");
+            return false;
         }
         $this->icc->Config($state, $flags);
         ZLog::Write(LOGLEVEL_DEBUG, 'ImportChangesCombined->Config() success');
@@ -308,7 +308,7 @@ class ImportHierarchyChangesCombinedWrap {
             $folder->parentid = $this->backendid.$this->backend->config['delimiter'].$folder->parentid;
         }
         if(isset($this->backend->config['folderbackend'][$folder->type]) && $this->backend->config['folderbackend'][$folder->type] != $this->backendid){
-            ZLog::Write(LOGLEVEL_DEBUG, sprintf("not ussing folder: '%s' ('%s')", $folder->displayname, $folder->serverid));
+            ZLog::Write(LOGLEVEL_DEBUG, sprintf("not using folder: '%s' ('%s')", $folder->displayname, $folder->serverid));
             return true;
         }
         ZLog::Write(LOGLEVEL_DEBUG, "ImportHierarchyChangesCombinedWrap->ImportFolderChange() success");

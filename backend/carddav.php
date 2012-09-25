@@ -11,7 +11,7 @@
 * Copyright 2012 <xbgmsharp@gmail.com>
 *
 * Modified by Francisco Miguel Biete <fmbiete@gmail.com>
-* Work with DaviCal
+* Work with DaviCal. Limited to 1 addressbook/principal
 *
 ************************************************/
 

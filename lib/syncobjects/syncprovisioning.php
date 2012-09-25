@@ -253,15 +253,15 @@ class SyncProvisioning extends SyncObject {
 
     public function LoadDefaultPolicies() {
         //AS 12.0, 12.1 and 14.0 props
-        $this->devpwenabled = 0;
+        $this->devpwenabled = 1;
         $this->alphanumpwreq = 0;
         $this->devencenabled = 0;
         $this->pwrecoveryenabled = 0;
         $this->docbrowseenabled;
         $this->attenabled = 1;
         $this->mindevpwlenngth = 4;
-        $this->maxinacttimedevlock = 900;
-        $this->maxdevpwfailedattempts = 8;
+        $this->maxinacttimedevlock = 300;
+        $this->maxdevpwfailedattempts = 6;
         $this->maxattsize = '';
         $this->allowsimpledevpw = 1;
         $this->devpwexpiration = 0;

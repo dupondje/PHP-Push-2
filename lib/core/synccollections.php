@@ -410,13 +410,23 @@ class SyncCollections implements Iterator {
             if ($onlyPingable && $spa->GetPingableFlag() !== true)
                 continue;
 
-            $classes[] = $spa->GetContentClass();
+            if (!isset($classes[$spa->GetContentClass()]))
+                $classes[$spa->GetContentClass()] = 0;
+            $classes[$spa->GetContentClass()] += 1;
         }
-        $checkClasses = implode("/", $classes);
-
-        // is there something to check?
-        if (empty($this->collections) || ($onlyPingable && empty($classes)))
-            throw new StatusException("SyncCollections->CheckForChanges(): no collections available", self::ERROR_NO_COLLECTIONS);
+        if (empty($classes))
+            $checkClasses = "policies only";
+        else if (array_sum($classes) > 4) {
+            $checkClasses = "";
+            foreach($classes as $class=>$count) {
+                if ($count == 1)
+                    $checkClasses .= sprintf("%s ", $class);
+                else
+                    $checkClasses .= sprintf("%s(%d) ", $class, $count);
+            }
+        }
+        else
+            $checkClasses = implode("/", array_keys($classes));
 
         $pingTracking = new PingTracking();
         $this->changes = array();
@@ -424,12 +434,13 @@ class SyncCollections implements Iterator {
 
         ZPush::GetTopCollector()->SetAsPushConnection();
         ZPush::GetTopCollector()->AnnounceInformation(sprintf("lifetime %ds", $lifetime), true);
-        ZLog::Write(LOGLEVEL_INFO, sprintf("SyncCollections->CheckForChanges(): Waiting for changes... (lifetime %d seconds)", $lifetime));
+        ZLog::Write(LOGLEVEL_INFO, sprintf("SyncCollections->CheckForChanges(): Waiting for %s changes... (lifetime %d seconds)", (empty($classes))?'policy':'store', $lifetime));
 
         // use changes sink where available
         $changesSink = false;
         $forceRealExport = 0;
-        if (ZPush::GetBackend()->HasChangesSink()) {
+        // do not create changessink if there are no folders
+        if (!empty($classes) && ZPush::GetBackend()->HasChangesSink()) {
             $changesSink = true;
 
             // initialize all possible folders

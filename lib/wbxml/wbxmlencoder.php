@@ -96,9 +96,11 @@ class WBXMLEncoder extends WBXMLDefs {
     public function startWBXML() {
         if ($this->multipart) {
             header("Content-Type: application/vnd.ms-sync.multipart");
+            ZLog::Write(LOGLEVEL_DEBUG, "WBXMLEncoder->startWBXML() type: vnd.ms-sync.multipart");
         }
         else {
             header("Content-Type: application/vnd.ms-sync.wbxml");
+            ZLog::Write(LOGLEVEL_DEBUG, "WBXMLEncoder->startWBXML() type: vnd.ms-sync.wbxml");
         }
 
         $this->outByte(0x03); // WBXML 1.3
@@ -148,6 +150,9 @@ class WBXMLEncoder extends WBXMLDefs {
         // Only output end tags for items that have had a start tag sent
         if($stackelem['sent']) {
             $this->_endTag();
+
+            if(count($this->_stack) == 0)
+                ZLog::Write(LOGLEVEL_DEBUG, "WBXMLEncoder->endTag() WBXML output completed");
 
             if(count($this->_stack) == 0 && $this->multipart == true) {
                 $this->processMultipart();
@@ -472,6 +477,7 @@ class WBXMLEncoder extends WBXMLDefs {
      * @return void
      */
     private function processMultipart() {
+        ZLog::Write(LOGLEVEL_DEBUG, sprintf("WBXMLEncoder->processMultipart() with %d parts to be processed", $this->getBodypartsCount()));
         $len = ob_get_length();
         $buffer = ob_get_clean();
         $nrBodyparts = $this->getBodypartsCount();

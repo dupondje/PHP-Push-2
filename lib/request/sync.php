@@ -436,9 +436,9 @@ class Sync extends RequestProcessor {
                             }
 
                             if ($actiondata["fetchids"])
-                                self::$topCollector->AnnounceInformation(sprintf("Fetching %d", $nchanges),true);
+                                self::$topCollector->AnnounceInformation(sprintf("Fetching %d", $nchanges));
                             else
-                                self::$topCollector->AnnounceInformation(sprintf("Incoming %d", $nchanges),($nchanges>0)?true:false);
+                                self::$topCollector->AnnounceInformation(sprintf("Incoming %d", $nchanges));
 
                             if(!self::$decoder->getElementEndTag()) // end add/change/delete/move
                                 return false;
@@ -446,6 +446,9 @@ class Sync extends RequestProcessor {
 
                         if ($status == SYNC_STATUS_SUCCESS && $this->importer !== false) {
                             ZLog::Write(LOGLEVEL_INFO, sprintf("Processed '%d' incoming changes", $nchanges));
+                            if (!$actiondata["fetchids"])
+                                self::$topCollector->AnnounceInformation(sprintf("%d incoming", $nchanges), true);
+
                             try {
                                 // Save the updated state, which is used for the exporter later
                                 $sc->AddParameter($spa, "state", $this->importer->GetState());
@@ -999,6 +1002,13 @@ class Sync extends RequestProcessor {
             }
             else
                 $this->importer->Config($sc->GetParameter($spa, "state"), $spa->GetConflict());
+
+            // the CPO is also needed by the importer to check if imported changes
+            // are inside the sync window - see ZP-258
+            // TODO ConfigContentParameters needs to be defined in IImportChanges and all implementing importers/backends
+            // this is currently only supported by the Zarafa Backend
+            if (method_exists($this->importer, "ConfigContentParameters"))
+                $this->importer->ConfigContentParameters($spa->GetCPO());
         }
         catch (StatusException $stex) {
            $status = $stex->getCode();

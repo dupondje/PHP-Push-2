@@ -6,7 +6,7 @@
 *
 * Created   :   03.04.2008
 *
-* Copyright 2007 - 2011 Zarafa Deutschland GmbH
+* Copyright 2007 - 2012 Zarafa Deutschland GmbH
 *
 * This program is free software: you can redistribute it and/or modify
 * it under the terms of the GNU Affero General Public License, version 3,
@@ -178,7 +178,7 @@ class Utils {
                         $fileas = $company;
                     }
                     elseif (strlen($firstlast) > 0)
-                        $fileas = $firstlast;
+                        $fileas = $lastfirst;
                     break;
                 case SYNC_FILEAS_COMPANYLAST:
                     if (strlen($company) > 0) {

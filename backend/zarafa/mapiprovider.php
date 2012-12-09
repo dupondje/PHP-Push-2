@@ -291,8 +291,11 @@ class MAPIProvider {
 
         // Status 0 = no meeting, status 1 = organizer, status 2/3/4/5 = tentative/accepted/declined/notresponded
         if(isset($messageprops[$appointmentprops["meetingstatus"]]) && $messageprops[$appointmentprops["meetingstatus"]] > 1) {
+            if (!isset($message->attendees) || !is_array($message->attendees))
+                $message->attendees = array();
             // Work around iOS6 cancellation issue when there are no attendees for this meeting. Just add ourselves as the sole attendee.
             if(count($message->attendees) == 0) {
+
                 ZLog::Write(LOGLEVEL_DEBUG, sprintf("MAPIProvider->getAppointment: adding ourself as an attendee for iOS6 workaround"));
                 $attendee = new SyncAttendee();
 
@@ -855,6 +858,80 @@ class MAPIProvider {
         return SYNC_FOLDER_TYPE_OTHER;
     }
 
+    /**
+     * Indicates if the entry id is a default MAPI folder
+     *
+     * @param string            $entryid
+     *
+     * @access public
+     * @return boolean
+     */
+    public function IsMAPIDefaultFolder($entryid) {
+        $msgstore_props = mapi_getprops($this->store, array(PR_ENTRYID, PR_DISPLAY_NAME, PR_IPM_SUBTREE_ENTRYID, PR_IPM_OUTBOX_ENTRYID, PR_IPM_SENTMAIL_ENTRYID, PR_IPM_WASTEBASKET_ENTRYID, PR_MDB_PROVIDER, PR_IPM_PUBLIC_FOLDERS_ENTRYID, PR_IPM_FAVORITES_ENTRYID, PR_MAILBOX_OWNER_ENTRYID));
+
+        $inboxProps = array();
+        $inbox = mapi_msgstore_getreceivefolder($this->store);
+        if(!mapi_last_hresult())
+            $inboxProps = mapi_getprops($inbox, array(PR_ENTRYID));
+
+        $root = mapi_msgstore_openentry($this->store, null);
+        $rootProps = mapi_getprops($root, array(PR_IPM_APPOINTMENT_ENTRYID, PR_IPM_CONTACT_ENTRYID, PR_IPM_DRAFTS_ENTRYID, PR_IPM_JOURNAL_ENTRYID, PR_IPM_NOTE_ENTRYID, PR_IPM_TASK_ENTRYID, PR_ADDITIONAL_REN_ENTRYIDS));
+
+        $additional_ren_entryids = array();
+        if(isset($rootProps[PR_ADDITIONAL_REN_ENTRYIDS]))
+            $additional_ren_entryids = $rootProps[PR_ADDITIONAL_REN_ENTRYIDS];
+
+        $defaultfolders = array(
+                        "inbox"                 =>      array("inbox"=>PR_ENTRYID),
+                        "outbox"                =>      array("store"=>PR_IPM_OUTBOX_ENTRYID),
+                        "sent"                  =>      array("store"=>PR_IPM_SENTMAIL_ENTRYID),
+                        "wastebasket"           =>      array("store"=>PR_IPM_WASTEBASKET_ENTRYID),
+                        "favorites"             =>      array("store"=>PR_IPM_FAVORITES_ENTRYID),
+                        "publicfolders"         =>      array("store"=>PR_IPM_PUBLIC_FOLDERS_ENTRYID),
+                        "calendar"              =>      array("root" =>PR_IPM_APPOINTMENT_ENTRYID),
+                        "contact"               =>      array("root" =>PR_IPM_CONTACT_ENTRYID),
+                        "drafts"                =>      array("root" =>PR_IPM_DRAFTS_ENTRYID),
+                        "journal"               =>      array("root" =>PR_IPM_JOURNAL_ENTRYID),
+                        "note"                  =>      array("root" =>PR_IPM_NOTE_ENTRYID),
+                        "task"                  =>      array("root" =>PR_IPM_TASK_ENTRYID),
+                        "junk"                  =>      array("additional" =>4),
+                        "syncissues"            =>      array("additional" =>1),
+                        "conflicts"             =>      array("additional" =>0),
+                        "localfailures"         =>      array("additional" =>2),
+                        "serverfailures"        =>      array("additional" =>3),
+        );
+
+        foreach($defaultfolders as $key=>$prop){
+            $tag = reset($prop);
+            $from = key($prop);
+            switch($from){
+                case "inbox":
+                    if(isset($inboxProps[$tag]) && $entryid == $inboxProps[$tag]) {
+                        ZLog::Write(LOGLEVEL_DEBUG, sprintf("MAPIProvider->IsMAPIFolder(): Inbox found, key '%s'", $key));
+                        return true;
+                    }
+                    break;
+                case "store":
+                    if(isset($msgstore_props[$tag]) && $entryid == $msgstore_props[$tag]) {
+                        ZLog::Write(LOGLEVEL_DEBUG, sprintf("MAPIProvider->IsMAPIFolder(): Store folder found, key '%s'", $key));
+                        return true;
+                    }
+                    break;
+                case "root":
+                    if(isset($rootProps[$tag]) && $entryid == $rootProps[$tag]) {
+                        ZLog::Write(LOGLEVEL_DEBUG, sprintf("MAPIProvider->IsMAPIFolder(): Root folder found, key '%s'", $key));
+                        return true;
+                    }
+                    break;
+                case "additional":
+                    if(isset($additional_ren_entryids[$tag]) && $entryid == $additional_ren_entryids[$tag]) {
+                        ZLog::Write(LOGLEVEL_DEBUG, sprintf("MAPIProvider->IsMAPIFolder(): Additional folder found, key '%s'", $key));
+                        return true;
+                    }
+            }
+        }
+        return false;
+    }
 
     /**----------------------------------------------------------------------------------------------------------
      * SETTER
@@ -1027,7 +1104,7 @@ class MAPIProvider {
         $props[$appointmentprops["sideeffects"]] = 369;
 
 
-        if(isset($appointment->reminder) && $appointment->reminder > 0) {
+        if(isset($appointment->reminder) && $appointment->reminder >= 0) {
             // Set 'flagdueby' to correct value (start - reminderminutes)
             $props[$appointmentprops["flagdueby"]] = $appointment->starttime - $appointment->reminder * 60;
             $props[$appointmentprops["remindertime"]] = $appointment->reminder;
@@ -2137,23 +2214,6 @@ class MAPIProvider {
     }
 
     /**
-     * Returns the best match of preferred body preference types.
-     *
-     * @param array             $bpTypes
-     *
-     * @access private
-     * @return int
-     */
-    private function getBodyPreferenceBestMatch($bpTypes) {
-        // The best choice is RTF, then HTML and then MIME in order to save bandwidth
-        // because MIME is a complete message including the headers and attachments
-        if (in_array(SYNC_BODYPREFERENCE_RTF, $bpTypes))  return SYNC_BODYPREFERENCE_RTF;
-        if (in_array(SYNC_BODYPREFERENCE_HTML, $bpTypes)) return SYNC_BODYPREFERENCE_HTML;
-        if (in_array(SYNC_BODYPREFERENCE_MIME, $bpTypes)) return SYNC_BODYPREFERENCE_MIME;
-        return SYNC_BODYPREFERENCE_PLAIN;
-    }
-
-    /**
      * Returns the message body for a required format
      *
      * @param MAPIMessage       $mapimessage
@@ -2258,8 +2318,8 @@ class MAPIProvider {
                 ZLog::Write(LOGLEVEL_DEBUG, sprintf("Remove mime body preference type because the device required no mime support. BodyPreference types: %s", implode(', ', $bpTypes)));
             }
             //get the best fitting preference type
-            $bpReturnType = $this->getBodyPreferenceBestMatch($bpTypes);
-            ZLog::Write(LOGLEVEL_DEBUG, sprintf("getBodyPreferenceBestMatch: %d", $bpReturnType));
+            $bpReturnType = Utils::GetBodyPreferenceBestMatch($bpTypes);
+            ZLog::Write(LOGLEVEL_DEBUG, sprintf("GetBodyPreferenceBestMatch: %d", $bpReturnType));
             $bpo = $contentparameters->BodyPreference($bpReturnType);
             ZLog::Write(LOGLEVEL_DEBUG, sprintf("bpo: truncation size:'%d', allornone:'%d', preview:'%d'", $bpo->GetTruncationSize(), $bpo->GetAllOrNone(), $bpo->GetPreview()));
 

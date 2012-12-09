@@ -191,6 +191,11 @@
     define('IMAP_INLINE_FORWARD', false);
     // use imap_mail() to send emails (default) - if false mail() is used
     define('IMAP_USE_IMAPMAIL', true);
+    /* BEGIN fmbiete's contribution r1527, ZP-319 */
+    // list of folders we want to exclude from sync. Names, or part of it, separated by |
+    // example: dovecot.sieve|archive|spam
+    define('IMAP_EXCLUDED_FOLDERS', '');
+    /* END fmbiete's contribution r1527, ZP-319 */
 
 
     // ************************
@@ -203,31 +208,6 @@
     //  BackendVCardDir settings
     // **********************
     define('VCARDDIR_DIR', '/home/%u/.kde/share/apps/kabc/stdvcf');
-
-    // **********************
-    //  BackendCalDAV settings
-    // **********************
-    define('CALDAV_SERVER', 'http://calendar.domain.com');
-    define('CALDAV_PORT', '80');
-    define('CALDAV_PATH', '/caldav.php/%u/');
-    define('CALDAV_PERSONAL', 'home'); //Personal CalDAV folder
-
-    // **********************
-    //  BackendCardDAV settings
-    // **********************
-    define('CARDDAV_SERVER', 'http://contacts.domain.com');
-    define('CARDDAV_PORT', '80');
-    define('CARDDAV_PATH', '/caldav.php/%u/');
-    define('CARDDAV_PRINCIPAL', 'addresses'); //Personal CardDAV folder
-
-    
-    // **********************
-    //  BackendLDAP settings
-    // **********************
-    define('LDAP_SERVER', 'localhost');
-    define('LDAP_SERVER_PORT', '389');
-    define('LDAP_USER_DN', 'uid=%u,ou=mailaccount,dc=phppush,dc=com');
-    define('LDAP_BASE_DNS', 'Contacts:ou=addressbook,uid=%u,ou=mailaccount,dc=phppush,dc=com'); //Multiple values separator is |
 
 
 /**********************************************************************************

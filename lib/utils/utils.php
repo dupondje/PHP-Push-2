@@ -832,6 +832,42 @@ class Utils {
         }
         return $string;
     }
+
+    /**
+     * Returns the best match of preferred body preference types.
+     *
+     * @param array             $bpTypes
+     *
+     * @access public
+     * @return int
+     */
+    public static function GetBodyPreferenceBestMatch($bpTypes) {
+        // The best choice is RTF, then HTML and then MIME in order to save bandwidth
+        // because MIME is a complete message including the headers and attachments
+        if (in_array(SYNC_BODYPREFERENCE_RTF, $bpTypes))  return SYNC_BODYPREFERENCE_RTF;
+        if (in_array(SYNC_BODYPREFERENCE_HTML, $bpTypes)) return SYNC_BODYPREFERENCE_HTML;
+        if (in_array(SYNC_BODYPREFERENCE_MIME, $bpTypes)) return SYNC_BODYPREFERENCE_MIME;
+        return SYNC_BODYPREFERENCE_PLAIN;
+    }
+
+    /* BEGIN fmbiete's contribution r1516, ZP-318 */
+    /**
+     * Converts a html string into a plain text string
+     *
+     * @param string $html
+     *
+     * @access public
+     * @return string
+     */
+    public static function ConvertHtmlToText($html) {
+        // remove css-style tags
+        $plaintext = preg_replace("/<style.*?<\/style>/is", "", $html);
+        // remove all other html
+        $plaintext = strip_tags($plaintext);
+
+        return $plaintext;
+    }
+    /* END fmbiete's contribution r1516, ZP-318 */
 }
 
 

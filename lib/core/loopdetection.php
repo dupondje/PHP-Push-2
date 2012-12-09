@@ -477,6 +477,43 @@ class LoopDetection extends InterProcessData {
     }
 
     /**
+     * Marks a SyncState as "already used", e.g. when an import process started.
+     * This is most critical for DiffBackends, as an imported message would be exported again
+     * in the heartbeat if the notification is triggered before the import is complete.
+     *
+     * @param string $folderid          folder id
+     * @param string $uuid              synkkey
+     * @param string $counter           synckey counter
+     *
+     * @access public
+     * @return boolean
+     */
+    public function SetSyncStateUsage($folderid, $uuid, $counter) {
+        // initialize params
+        $this->InitializeParams();
+
+        ZLog::Write(LOGLEVEL_DEBUG, sprintf("LoopDetection->SetSyncStateUsage(): uuid: %s  counter: %d", $uuid, $counter));
+
+        // exclusive block
+        if ($this->blockMutex()) {
+            $loopdata = ($this->hasData()) ? $this->getData() : array();
+            // check and initialize the array structure
+            $this->checkArrayStructure($loopdata, $folderid);
+            $current = $loopdata[self::$devid][self::$user][$folderid];
+
+            // update the usage flag
+            $current["usage"] = $counter;
+
+            // update loop data
+            $loopdata[self::$devid][self::$user][$folderid] = $current;
+            $ok = $this->setData($loopdata);
+
+            $this->releaseMutex();
+        }
+        // end exclusive block
+    }
+
+    /**
      * Checks if the given counter for a certain uuid+folderid was exported before.
      * Returns also true if the counter are the same but previously there were
      * changes to be exported.
@@ -512,12 +549,12 @@ class LoopDetection extends InterProcessData {
                 }
                 ZLog::Write(LOGLEVEL_DEBUG, sprintf("LoopDetection->IsSyncStateObsolete(): check uuid counter: %d - last known counter: %d with %d queued objects", $counter, $current["count"], $current["queued"]));
 
-                if ($current["uuid"] == $uuid && ($current["count"] > $counter || ($current["count"] == $counter && $current["queued"] > 0))) {
-                    ZLog::Write(LOGLEVEL_DEBUG, "LoopDetection->IsSyncStateObsolete(): yes, counter already processed");
+                if ($current["uuid"] == $uuid && ($current["count"] > $counter || ($current["count"] == $counter && $current["queued"] > 0) || (isset($current["usage"]) && $current["usage"] >= $counter))) {
+                    $usage = isset($current["usage"]) ? sprintf(" - counter %d already expired",$current["usage"]) : "";
+                    ZLog::Write(LOGLEVEL_DEBUG, "LoopDetection->IsSyncStateObsolete(): yes, counter already processed". $usage);
                     $obsolete = true;
                 }
             }
-
         }
 
         return $obsolete;
@@ -618,6 +655,8 @@ class LoopDetection extends InterProcessData {
                     // case 1.1
                     $current['count'] = $counter;
                     $current['queued'] = $queuedMessages;
+                    if (isset($current["usage"]) && $current["usage"] < $current['count'])
+                        unset($current["usage"]);
 
                     // case 1.2
                     if (isset($current['maxCount'])) {
@@ -643,6 +682,8 @@ class LoopDetection extends InterProcessData {
                 // case 2 - same counter, but there were no changes before and are there now
                 else if ($current['count'] == $counter && $current['queued'] == 0 && $queuedMessages > 0) {
                     $current['queued'] = $queuedMessages;
+                    if (isset($current["usage"]) && $current["usage"] < $current['count'])
+                        unset($current["usage"]);
                 }
 
                 // case 3 - same counter, changes sent before, hanging loop and ignoring

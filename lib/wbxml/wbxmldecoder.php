@@ -6,7 +6,7 @@
 *
 * Created   :   01.10.2007
 *
-* Copyright 2007 - 2011 Zarafa Deutschland GmbH
+* Copyright 2007 - 2012 Zarafa Deutschland GmbH
 *
 * This program is free software: you can redistribute it and/or modify
 * it under the terms of the GNU Affero General Public License, version 3,
@@ -436,18 +436,18 @@ class WBXMLDecoder extends WBXMLDefs {
                 case WBXML_ENTITY:
                     $entity = $this->getMBUInt();
                     $attr .= $this->entityToCharset($entity);
-                    return $element;
+                    return $attr; /* fmbiete's contribution r1534, ZP-324 */
 
                 case WBXML_STR_I:
                     $attr .= $this->getTermStr();
-                    return $element;
+                    return $attr; /* fmbiete's contribution r1534, ZP-324 */
 
                 case WBXML_LITERAL:
                     if($attr != "")
                         $attributes += $this->splitAttribute($attr);
 
                     $attr = $this->getStringTableEntry($this->getMBUInt());
-                    return $element;
+                    return $attr; /* fmbiete's contribution r1534, ZP-324 */
 
                 case WBXML_EXT_I_0:
                 case WBXML_EXT_I_1:
@@ -468,7 +468,7 @@ class WBXMLDecoder extends WBXMLDefs {
 
                 case WBXML_STR_T:
                     $attr .= $this->getStringTableEntry($this->getMBUInt());
-                    return $element;
+                    return $attr; /* fmbiete's contribution r1534, ZP-324 */
 
                 case WBXML_LITERAL_A:
                     return false;
@@ -481,7 +481,7 @@ class WBXMLDecoder extends WBXMLDefs {
                 case WBXML_OPAQUE:
                     $length = $this->getMBUInt();
                     $attr .= $this->getOpaque($length);
-                    return $element;
+                    return $attr; /* fmbiete's contribution r1534, ZP-324 */
 
                 case WBXML_LITERAL_AC:
                     return false;

@@ -10,7 +10,7 @@
 *
 * Created   :   11.04.2011
 *
-* Copyright 2007 - 2011 Zarafa Deutschland GmbH
+* Copyright 2007 - 2012 Zarafa Deutschland GmbH
 *
 * This program is free software: you can redistribute it and/or modify
 * it under the terms of the GNU Affero General Public License, version 3,
@@ -46,9 +46,6 @@
 ************************************************/
 
 class DeviceManager {
-    // stream up to 100 messages to the client by default
-    const DEFAULTWINDOWSIZE = 100;
-
     // broken message indicators
     const MSG_BROKEN_UNKNOWN = 1;
     const MSG_BROKEN_CAUSINGLOOP = 2;
@@ -461,7 +458,13 @@ class DeviceManager {
         if (isset($this->windowSize[$folderid]))
             $items = $this->windowSize[$folderid];
         else
-            $items = self::DEFAULTWINDOWSIZE;
+            $items = (defined("SYNC_MAX_ITEMS")) ? SYNC_MAX_ITEMS : 100;
+
+        if (defined("SYNC_MAX_ITEMS") && SYNC_MAX_ITEMS < $items) {
+            if ($queuedmessages > SYNC_MAX_ITEMS)
+                ZLog::Write(LOGLEVEL_DEBUG, sprintf("DeviceManager->GetWindowSize() overwriting max itmes requested of %d by %d forced in configuration.", $items, SYNC_MAX_ITEMS));
+            $items = SYNC_MAX_ITEMS;
+        }
 
         $this->setLatestFolder($folderid);
 
@@ -604,7 +607,7 @@ class DeviceManager {
     }
 
     /**
-     * Checks if the given counter for a certain uuid+folderid was exported before.
+     * Checks if the given counter for a certain uuid+folderid was already exported or modified.
      * This is called when a heartbeat request found changes to make sure that the same
      * changes are not exported twice, as during the heartbeat there could have been a normal
      * sync request.
@@ -618,6 +621,20 @@ class DeviceManager {
      */
     public function CheckHearbeatStateIntegrity($folderid, $uuid, $counter) {
         return $this->loopdetection->IsSyncStateObsolete($folderid, $uuid, $counter);
+    }
+
+    /**
+     * Marks a syncstate as obsolete for Heartbeat, as e.g. an import was started using it.
+     *
+     * @param string $folderid          folder id
+     * @param string $uuid              synkkey
+     * @param string $counter           synckey counter
+     *
+     * @access public
+     * @return
+     */
+    public function SetHeartbeatStateIntegrity($folderid, $uuid, $counter) {
+        return $this->loopdetection->SetSyncStateUsage($folderid, $uuid, $counter);
     }
 
     /**

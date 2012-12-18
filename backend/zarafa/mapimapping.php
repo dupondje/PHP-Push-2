@@ -6,7 +6,7 @@
 *
 * Created   :   29.04.2011
 *
-* Copyright 2007 - 2011 Zarafa Deutschland GmbH
+* Copyright 2007 - 2012 Zarafa Deutschland GmbH
 *
 * This program is free software: you can redistribute it and/or modify
 * it under the terms of the GNU Affero General Public License, version 3,
@@ -321,6 +321,7 @@ class MAPIMapping {
             "representingname"      => PR_SENT_REPRESENTING_NAME,
             "sentrepresentingemail" => PR_SENT_REPRESENTING_EMAIL_ADDRESS,
             "sentrepresentingaddt"  => PR_SENT_REPRESENTING_ADDRTYPE,
+            "sentrepresentinsrchk"  => PR_SENT_REPRESENTING_SEARCH_KEY,
             "reminderset"           => "PT_BOOLEAN:PSETID_Common:0x8503",
             "remindertime"          => "PT_LONG:PSETID_Common:0x8501",
             "meetingstatus"         => "PT_LONG:PSETID_Appointment:0x8217",
@@ -328,7 +329,7 @@ class MAPIMapping {
             "recurringstate"        => "PT_BINARY:PSETID_Appointment:0x8216",
             "timezonetag"           => "PT_BINARY:PSETID_Appointment:0x8233",
             "recurrenceend"         => "PT_SYSTIME:PSETID_Appointment:0x8236",
-            "meetingstatus"         => "PT_LONG:PSETID_Appointment:0x8218",
+            "responsestatus"        => "PT_LONG:PSETID_Appointment:0x8218",
             "commonstart"           => "PT_SYSTIME:PSETID_Common:0x8516",
             "commonend"             => "PT_SYSTIME:PSETID_Common:0x8517",
             "reminderstart"         => "PT_SYSTIME:PSETID_Common:0x8502",

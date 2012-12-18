@@ -10,7 +10,7 @@
 *
 * Created   :   01.10.2011
 *
-* Copyright 2007 - 2011 Zarafa Deutschland GmbH
+* Copyright 2007 - 2012 Zarafa Deutschland GmbH
 *
 * This program is free software: you can redistribute it and/or modify
 * it under the terms of the GNU Affero General Public License, version 3,
@@ -445,6 +445,25 @@ class BackendZarafa implements IBackend, ISearchProvider {
             $ab = mapi_openaddressbook($this->session);
             mapi_inetmapi_imtomapi($this->session, $this->store, $ab, $mapimessage, $sm->mime, array());
 
+            // Set the appSeqNr so that tracking tab can be updated for meeting request updates
+            // @see http://jira.zarafa.com/browse/ZP-68
+            $meetingRequestProps = MAPIMapping::GetMeetingRequestProperties();
+            $meetingRequestProps = getPropIdsFromStrings($this->store, $meetingRequestProps);
+            $props = mapi_getprops($mapimessage, array(PR_MESSAGE_CLASS, $meetingRequestProps["goidtag"]));
+            if (stripos($props[PR_MESSAGE_CLASS], "IPM.Schedule.Meeting.Resp.") === 0) {
+                // search for calendar items using goid
+                $mr = new Meetingrequest($this->store, $mapimessage);
+                $appointments = $mr->findCalendarItems($props[$meetingRequestProps["goidtag"]]);
+                if (is_array($appointments) && !empty($appointments)) {
+                    $app = mapi_msgstore_openentry($this->store, $appointments[0]);
+                    $appprops = mapi_getprops($app, array($meetingRequestProps["appSeqNr"]));
+                    if (isset($appprops[$meetingRequestProps["appSeqNr"]]) && $appprops[$meetingRequestProps["appSeqNr"]]) {
+                        $mapiprops[$meetingRequestProps["appSeqNr"]] = $appprops[$meetingRequestProps["appSeqNr"]];
+                        ZLog::Write(LOGLEVEL_DEBUG, sprintf("Set sequence number to:%d", $appprops[$meetingRequestProps["appSeqNr"]]));
+                    }
+                }
+            }
+
             // Delete the PR_SENT_REPRESENTING_* properties because some android devices
             // do not send neither From nor Sender header causing empty PR_SENT_REPRESENTING_NAME and
             // PR_SENT_REPRESENTING_EMAIL_ADDRESS properties and "broken" PR_SENT_REPRESENTING_ENTRYID
@@ -472,6 +491,7 @@ class BackendZarafa implements IBackend, ISearchProvider {
                     // get message's body in order to append forward or reply text
                     $body = MAPIUtils::readPropStream($mapimessage, PR_BODY);
                     $bodyHtml = MAPIUtils::readPropStream($mapimessage, PR_HTML);
+                    $cpid = mapi_getprops($fwmessage, array($sendMailProps["internetcpid"]));
                     if($sm->forwardflag) {
                         // attach the original attachments to the outgoing message
                         $this->copyAttachments($mapimessage, $fwmessage);
@@ -479,11 +499,13 @@ class BackendZarafa implements IBackend, ISearchProvider {
 
                     if (strlen($body) > 0) {
                         $fwbody = MAPIUtils::readPropStream($fwmessage, PR_BODY);
+                        $fwbody = (isset($cpid[$sendMailProps["internetcpid"]])) ? Utils::ConvertCodepageStringToUtf8($cpid[$sendMailProps["internetcpid"]], $fwbody) : w2u($fwbody);
                         $mapiprops[$sendMailProps["body"]] = $body."\r\n\r\n".$fwbody;
                     }
 
                     if (strlen($bodyHtml) > 0) {
                         $fwbodyHtml = MAPIUtils::readPropStream($fwmessage, PR_HTML);
+                        $fwbodyHtml = (isset($cpid[$sendMailProps["internetcpid"]])) ? Utils::ConvertCodepageStringToUtf8($cpid[$sendMailProps["internetcpid"]], $fwbodyHtml) : w2u($fwbodyHtml);
                         $mapiprops[$sendMailProps["html"]] = $bodyHtml."<br><br>".$fwbodyHtml;
                     }
                 }

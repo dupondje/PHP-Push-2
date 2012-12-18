@@ -6,7 +6,7 @@
 *
 * Created   :   12.04.2011
 *
-* Copyright 2007 - 2011 Zarafa Deutschland GmbH
+* Copyright 2007 - 2012 Zarafa Deutschland GmbH
 *
 * This program is free software: you can redistribute it and/or modify
 * it under the terms of the GNU Affero General Public License, version 3,
@@ -223,7 +223,7 @@ class ZPush {
             throw new FatalMisconfigurationException("The configured LOGFILE can not be modified.");
 
         if (!touch(LOGERRORFILE))
-            throw new FatalMisconfigurationException("The configured LOGFILE can not be modified.");
+            throw new FatalMisconfigurationException("The configured LOGERRORFILE can not be modified.");
 
         // set time zone
         // code contributed by Robert Scheck (rsc) - more information: https://developer.berlios.de/mantis/view.php?id=479

@@ -13,7 +13,7 @@
 *
 * Created   :   12.08.2011
 *
-* Copyright 2007 - 2011 Zarafa Deutschland GmbH
+* Copyright 2007 - 2012 Zarafa Deutschland GmbH
 *
 * This program is free software: you can redistribute it and/or modify
 * it under the terms of the GNU Affero General Public License, version 3,
@@ -55,6 +55,7 @@ abstract class RequestProcessor {
     static protected $decoder;
     static protected $encoder;
     static protected $userIsAuthenticated;
+    static protected $specialHeaders;
 
     /**
      * Authenticates the remote user
@@ -124,6 +125,19 @@ abstract class RequestProcessor {
 
         // TODO handle WBXML exceptions here and print stack
         return $handler->Handle(Request::GetCommandCode());
+    }
+
+    /**
+     * Returns any additional headers which should be sent to the mobile
+     *
+     * @access public
+     * @return array
+     */
+    static public function GetSpecialHeaders() {
+        if (!isset(self::$specialHeaders) || !is_array(self::$specialHeaders))
+            return array();
+
+        return self::$specialHeaders;
     }
 
     /**

@@ -31,7 +31,7 @@ class BackendCalDAV extends BackendDiff {
 	{
 		$this->_username = $username;
 		$this->_caldav_path = str_replace('%u', $username, CALDAV_PATH);
-		$this->_caldav = new CalDAVClient(CALDAV_SERVER . $this->_caldav_path, $username, $password);
+		$this->_caldav = new CalDAVClient(CALDAV_SERVER . ":" . CALDAV_PORT . $this->_caldav_path, $username, $password);
 		$options = $this->_caldav->DoOptionsRequest();
 		if (isset($options["PROPFIND"]))
 		{

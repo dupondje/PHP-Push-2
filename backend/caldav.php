@@ -35,12 +35,12 @@ class BackendCalDAV extends BackendDiff {
 		$options = $this->_caldav->DoOptionsRequest();
 		if (isset($options["PROPFIND"]))
 		{
-			ZLog::Write(LOGLEVEL_INFO, sprintf("BackendCalDAV->Logon(): User '%s' is authenticated on CalDAV", $username));
+			ZLog::Write(LOGLEVEL_DEBUG, sprintf("BackendCalDAV->Logon(): User '%s' is authenticated on CalDAV", $username));
 			return true;
 		}
 		else
 		{
-			ZLog::Write(LOGLEVEL_INFO, sprintf("BackendCalDAV->Logon(): User '%s' is not authenticated on CalDAV", $username));
+			ZLog::Write(LOGLEVEL_WARN, sprintf("BackendCalDAV->Logon(): User '%s' is not authenticated on CalDAV", $username));
 			return false;
 		}
 	}

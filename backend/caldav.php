@@ -35,12 +35,12 @@ class BackendCalDAV extends BackendDiff {
 		$options = $this->_caldav->DoOptionsRequest();
 		if (isset($options["PROPFIND"]))
 		{
-			ZLog::Write(LOGLEVEL_INFO, sprintf("BackendCalDAV->Logon(): User '%s' is authenticated on CalDAV", $username));
+			ZLog::Write(LOGLEVEL_DEBUG, sprintf("BackendCalDAV->Logon(): User '%s' is authenticated on CalDAV", $username));
 			return true;
 		}
 		else
 		{
-			ZLog::Write(LOGLEVEL_INFO, sprintf("BackendCalDAV->Logon(): User '%s' is not authenticated on CalDAV", $username));
+			ZLog::Write(LOGLEVEL_WARN, sprintf("BackendCalDAV->Logon(): User '%s' is not authenticated on CalDAV", $username));
 			return false;
 		}
 	}
@@ -331,6 +331,16 @@ class BackendCalDAV extends BackendDiff {
 		return false;
 	}
 
+    /**
+     * Indicates which AS version is supported by the backend.
+     *
+     * @access public
+     * @return string       AS version constant
+     */
+    public function GetSupportedASVersion() {
+        return ZPush::ASV_14;
+    }
+    
 	/**
 	 * Convert a iCAL VEvent to ActiveSync format
 	 * @param ical_vevent $data
@@ -510,17 +520,32 @@ class BackendCalDAV extends BackendDiff {
 					break;
 
 				case "DESCRIPTION":
-					$body = $property->Value();
-					// truncate body, if requested
-					if(strlen($body) > $truncsize) {
-						$body = Utils::Utf8_truncate($body, $truncsize);
-						$message->bodytruncated = 1;
-					} else {
-						$body = $body;
-						$message->bodytruncated = 0;
-					}
-					$body = str_replace("\n","\r\n", str_replace("\r","",$body));
-					$message->body = $body;
+                    if (Request::GetProtocolVersion() >= 12.0) {
+                        $message->asbody = new SyncBaseBody();
+                        $message->asbody->data = str_replace("\n","\r\n", str_replace("\r","",Utils::ConvertHtmlToText($property->Value())));
+                        // truncate body, if requested
+                        if (strlen($message->asbody->data) > $truncsize) {
+                            $message->asbody->truncated = 1;
+                            $message->asbody->data = Utils::Utf8_truncate($message->asbody->data, $truncsize);
+                        }
+                        else {
+                            $message->asbody->truncated = 0;
+                        }
+                        $message->nativebodytype = SYNC_BODYPREFERENCE_PLAIN;
+                    }
+                    else {
+                        $body = $property->Value();
+                        // truncate body, if requested
+                        if(strlen($body) > $truncsize) {
+                            $body = Utils::Utf8_truncate($body, $truncsize);
+                            $message->bodytruncated = 1;
+                        } else {
+                            $body = $body;
+                            $message->bodytruncated = 0;
+                        }
+                        $body = str_replace("\n","\r\n", str_replace("\r","",$body));
+                        $message->body = $body;
+                    }
 					break;
 
 				case "CATEGORIES":
@@ -878,6 +903,9 @@ class BackendCalDAV extends BackendDiff {
 		{
 			$vevent->AddProperty("DESCRIPTION", $data->body);
 		}
+		if (isset($data->asbody->data)) {
+            $vevent->AddProperty("DESCRIPTION", $data->asbody->data);
+        }
 		if (isset($data->categories) && is_array($data->categories))
 		{
 			$vevent->AddProperty("CATEGORIES", implode(",", $data->categories));
@@ -1127,6 +1155,18 @@ class BackendCalDAV extends BackendDiff {
 		{
 			$vtodo->AddProperty("DESCRIPTION", $data->body);
 		}
+		if (isset($data->asbody->data)) {
+            if (isset($data->nativebodytype) && $data->nativebodytype == SYNC_BODYPREFERENCE_RTF) {
+                $rtfparser = new rtf();
+                $rtfparser->loadrtf(base64_decode($data->asbody->data));
+                $rtfparser->output("ascii");
+                $rtfparser->parse();
+                $vtodo->AddProperty("DESCRIPTION", $rtfparser->out);
+            }
+            else {
+                $vtodo->AddProperty("DESCRIPTION", $data->asbody->data);
+            }
+        }
 		if (isset($data->complete))
 		{
 			if ($data->complete == "0")
@@ -1204,7 +1244,7 @@ class BackendCalDAV extends BackendDiff {
 			$rtfparser->loadrtf(base64_decode($data->rtf));
 			$rtfparser->output("ascii");
 			$rtfparser->parse();
-			$vevent->AddProperty("DESCRIPTION", $rtfparser->out);
+			$vtodo->AddProperty("DESCRIPTION", $rtfparser->out);
 		}
 		if (isset($data->categories) && is_array($data->categories))
 		{

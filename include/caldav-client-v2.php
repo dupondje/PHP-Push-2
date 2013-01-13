@@ -255,7 +255,7 @@ class CalDAVClient {
   *
   * @return string The content of the response from the server
   */
-  function DoRequest( $url = null ) {
+  function DoRequest( $url = null, $digest_data = false ) {
     if(!defined("_FSOCK_TIMEOUT")){ define("_FSOCK_TIMEOUT", 10); }
     $headers = array();
 
@@ -272,7 +272,14 @@ class CalDAVClient {
       $url = str_replace(rawurlencode(','),',',$url);
     }
     $headers[] = $this->requestMethod." ". $url . " HTTP/1.1";
-    $headers[] = "Authorization: Basic ".base64_encode($this->user .":". $this->pass );
+    if ($digest_data === false) {
+        $headers[] = "Authorization: Basic ".base64_encode($this->user .":". $this->pass );
+    } else {
+        $A1 = md5($this->user . ":" . $digest_data['realm'] . ":" . $this->pass);
+        // TODO: add support for qop and related options
+        $A2 = md5($this->requestMethod . ":" . $url);
+        $headers[] = 'Authorization: Digest username="' . $this->user . '", realm="' . $digest_data['realm'] . '", nonce="' . $digest_data['nonce'] . '", uri="' . $url . '", response="' . md5($A1 . ":" . $digest_data['nonce'] . ":" . $A2) . '"';
+    }
     $headers[] = "Host: ".$this->server .":".$this->port;
 
     if ( !isset($this->headers['content-type']) ) $this->headers['content-type'] = "Content-type: text/plain";
@@ -303,6 +310,19 @@ class CalDAVClient {
 
     $this->headers = array();  // reset the headers array for our next request
     $this->ParseResponse($this->httpResponseBody);
+    
+    // Run everything again if we need to do digest authentication
+    if ($this->httpResponseCode == 401 && $digest_data === false && preg_match('/\bWWW-Authenticate: digest\b/i', $response)) {
+        $digest_header = preg_replace('/^.*WWW-Authenticate: digest (.+?)\r?\n.*$/is', '$1', $response);
+        $data_pairs = preg_split('/[, ]+/', $digest_header);
+        $data = array();
+        foreach ($data_pairs as $pair) {
+            $data_array = explode('=', $pair);
+            $data[$data_array[0]] = str_replace('"', '', $data_array[1]);
+        }
+        return $this->DoRequest($url, $data);
+    }
+    
     return $response;
   }
 

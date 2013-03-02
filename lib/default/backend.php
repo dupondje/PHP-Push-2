@@ -20,7 +20,7 @@
 *
 * Created   :   01.10.2007
 *
-* Copyright 2007 - 2012 Zarafa Deutschland GmbH
+* Copyright 2007 - 2013 Zarafa Deutschland GmbH
 *
 * This program is free software: you can redistribute it and/or modify
 * it under the terms of the GNU Affero General Public License, version 3,
@@ -186,6 +186,21 @@ abstract class Backend implements IBackend {
         if ($settings instanceof SyncOOF || $settings instanceof SyncUserInformation)
             $settings->Status = SYNC_SETTINGSSTATUS_SUCCESS;
         return $settings;
+    }
+
+    /**
+     * Resolves recipients
+     *
+     * @param SyncObject        $resolveRecipients
+     *
+     * @access public
+     * @return SyncObject       $resolveRecipients
+     */
+    public function ResolveRecipients($resolveRecipients) {
+        $r = new SyncResolveRecipients();
+        $r->status = SYNC_RESOLVERECIPSSTATUS_PROTOCOLERROR;
+        $r->recipient = array();
+        return $r;
     }
 
 

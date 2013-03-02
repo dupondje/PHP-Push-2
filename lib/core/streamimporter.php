@@ -6,7 +6,7 @@
 *
 * Created   :   01.10.2007
 *
-* Copyright 2007 - 2012 Zarafa Deutschland GmbH
+* Copyright 2007 - 2013 Zarafa Deutschland GmbH
 *
 * This program is free software: you can redistribute it and/or modify
 * it under the terms of the GNU Affero General Public License, version 3,
@@ -115,6 +115,8 @@ class ImportChangesStream implements IImportChanges {
                 $newmessage = new SyncMail();
                 $newmessage->read = $message->read;
                 $newmessage->flag = $message->flag;
+                if (isset($message->lastverbexectime)) $newmessage->lastverbexectime = $message->lastverbexectime;
+                if (isset($message->lastverbexecuted)) $newmessage->lastverbexecuted = $message->lastverbexecuted;
                 $message = $newmessage;
                 unset($newmessage);
                 ZLog::Write(LOGLEVEL_DEBUG, sprintf("ImportChangesStream->ImportMessageChange('%s'): SyncMail message updated. Message content is striped, only flags are streamed.", $id));

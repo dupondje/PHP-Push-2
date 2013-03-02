@@ -10,7 +10,7 @@
 *
 * Created   :   05.09.2011
 *
-* Copyright 2007 - 2012 Zarafa Deutschland GmbH
+* Copyright 2007 - 2013 Zarafa Deutschland GmbH
 *
 * This program is free software: you can redistribute it and/or modify
 * it under the terms of the GNU Affero General Public License, version 3,
@@ -101,7 +101,7 @@ class SyncMail extends SyncObject {
 
                     SYNC_POOMMAIL_FROM                                  => array (  self::STREAMER_VAR      => "from",
                                                                                     self::STREAMER_CHECKS   => array(   self::STREAMER_CHECK_LENGTHMAX      => 32768,
-                                                                                                                        self::STREAMER_CHECK_EMAIL        => "broken-from@z-push.local" )),
+                                                                                                                        self::STREAMER_CHECK_EMAIL        => "" )),
 
                     SYNC_POOMMAIL_SUBJECT                               => array (  self::STREAMER_VAR      => "subject"),
                     SYNC_POOMMAIL_THREADTOPIC                           => array (  self::STREAMER_VAR      => "threadtopic"),
@@ -182,7 +182,10 @@ class SyncMail extends SyncObject {
             $mapping[SYNC_POOMMAIL2_CONVERSATIONID]                     = array (   self::STREAMER_VAR      => "conversationid");
             $mapping[SYNC_POOMMAIL2_CONVERSATIONINDEX]                  = array (   self::STREAMER_VAR      => "conversationindex");
             $mapping[SYNC_POOMMAIL2_LASTVERBEXECUTED]                   = array (   self::STREAMER_VAR      => "lastverbexecuted");
-            $mapping[SYNC_POOMMAIL2_LASTVERBEXECUTIONTIME]              = array (   self::STREAMER_VAR      => "lastverbexectime");
+
+            $mapping[SYNC_POOMMAIL2_LASTVERBEXECUTIONTIME]              = array (   self::STREAMER_VAR      => "lastverbexectime",
+                                                                                    self::STREAMER_TYPE     => self::STREAMER_TYPE_DATE_DASHES);
+
             $mapping[SYNC_POOMMAIL2_RECEIVEDASBCC]                      = array (   self::STREAMER_VAR      => "receivedasbcc");
             $mapping[SYNC_POOMMAIL2_SENDER]                             = array (   self::STREAMER_VAR      => "sender");
             $mapping[SYNC_POOMMAIL_CATEGORIES]                          = array (   self::STREAMER_VAR      => "categories",

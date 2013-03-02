@@ -6,7 +6,7 @@
 *
 * Created   :   01.10.2007
 *
-* Copyright 2007 - 2012 Zarafa Deutschland GmbH
+* Copyright 2007 - 2013 Zarafa Deutschland GmbH
 *
 * This program is free software: you can redistribute it and/or modify
 * it under the terms of the GNU Affero General Public License, version 3,
@@ -1047,4 +1047,19 @@ define("SYNC_FILEAS_COMPANYLAST", 4);
 define("SYNC_FILEAS_COMPANYFIRST", 5);
 define("SYNC_FILEAS_LASTCOMPANY", 6);
 define("SYNC_FILEAS_FIRSTCOMPANY", 7);
+
+define ("SYNC_RESOLVERECIPIENTS_TYPE_GAL", 1);
+define ("SYNC_RESOLVERECIPIENTS_TYPE_CONTACT", 2);
+
+define ("SYNC_RESOLVERECIPIENTS_CERTRETRIEVE_NO", 1);
+define ("SYNC_RESOLVERECIPIENTS_CERTRETRIEVE_FULL", 2);
+define ("SYNC_RESOLVERECIPIENTS_CERTRETRIEVE_MINI", 3);
+
+define("NOTEIVERB_REPLYTOSENDER", 102);
+define("NOTEIVERB_REPLYTOALL", 103);
+define("NOTEIVERB_FORWARD", 104);
+
+define("AS_REPLYTOSENDER", 1);
+define("AS_REPLYTOALL", 2);
+define("AS_FORWARD", 3);
 ?>

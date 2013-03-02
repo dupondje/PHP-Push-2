@@ -6,7 +6,7 @@
 *
 * Created   :   03.04.2008
 *
-* Copyright 2007 - 2012 Zarafa Deutschland GmbH
+* Copyright 2007 - 2013 Zarafa Deutschland GmbH
 *
 * This program is free software: you can redistribute it and/or modify
 * it under the terms of the GNU Affero General Public License, version 3,
@@ -868,6 +868,24 @@ class Utils {
         return $plaintext;
     }
     /* END fmbiete's contribution r1516, ZP-318 */
+
+    /**
+     * Returns AS-style LastVerbExecuted value from the server value.
+     *
+     * @param int $verb
+     *
+     * @access public
+     * @return int
+     */
+    public static function GetLastVerbExecuted($verb) {
+        switch ($verb) {
+            case NOTEIVERB_REPLYTOSENDER:   return AS_REPLYTOSENDER;
+            case NOTEIVERB_REPLYTOALL:      return AS_REPLYTOALL;
+            case NOTEIVERB_FORWARD:         return AS_FORWARD;
+        }
+
+        return 0;
+    }
 }
 
 

@@ -6,7 +6,7 @@
 *
 * Created   :   14.02.2011
 *
-* Copyright 2007 - 2012 Zarafa Deutschland GmbH
+* Copyright 2007 - 2013 Zarafa Deutschland GmbH
 *
 * This program is free software: you can redistribute it and/or modify
 * it under the terms of the GNU Affero General Public License, version 3,
@@ -303,7 +303,7 @@ class MAPIProvider {
 
                 if (is_array($meinfo)) {
                     $attendee->email = w2u($meinfo["emailaddress"]);
-                    $attendee->mame = w2u($meinfo["fullname"]);
+                    $attendee->name = w2u($meinfo["fullname"]);
                     $attendee->attendeetype = MAPI_TO;
 
                     array_push($message->attendees, $attendee);
@@ -739,6 +739,11 @@ class MAPIProvider {
         $this->setFlag($mapimessage, $message);
         $message->contentclass = DEFAULT_EMAIL_CONTENTCLASS;
         if (!isset($message->nativebodytype)) $message->nativebodytype = $this->getNativeBodyType($messageprops);
+
+        // reply, reply to all, forward flags
+        if (isset($message->lastverbexecuted) && $message->lastverbexecuted) {
+            $message->lastverbexecuted = Utils::GetLastVerbExecuted($message->lastverbexecuted);
+        }
 
         return $message;
     }
@@ -1481,7 +1486,22 @@ class MAPIProvider {
             $recur["duedate"] = $task->duedate;
             $recurrence->setRecurrence($recur);
         }
+
+        //open addresss book for user resolve to set the owner
+        $addrbook = $this->getAddressbook();
+
+        // check if there is already an owner for the task, set current user if not
+        $p = array( $taskprops["owner"]);
+        $owner = $this->getProps($mapimessage, $p);
+        if (!isset($owner[$taskprops["owner"]])) {
+            $userinfo = mapi_zarafa_getuser($this->store, Request::GetAuthUser());
+            if(mapi_last_hresult() == NOERROR && isset($userinfo["fullname"])) {
+                $props[$taskprops["owner"]] = $userinfo["fullname"];
+            }
+        }
         mapi_setprops($mapimessage, $props);
+
+
     }
 
     /**
@@ -2274,7 +2294,7 @@ class MAPIProvider {
     private function imtoinet($mapimessage, &$message) {
         if (function_exists("mapi_inetmapi_imtoinet")) {
             $addrbook = $this->getAddressbook();
-            $mstream = mapi_inetmapi_imtoinet($this->session, $addrbook, $mapimessage, array());
+            $mstream = mapi_inetmapi_imtoinet($this->session, $addrbook, $mapimessage, array('use_tnef' => -1));
 
             $mstreamstat = mapi_stream_stat($mstream);
             if ($mstreamstat['cb'] < MAX_EMBEDDED_SIZE) {

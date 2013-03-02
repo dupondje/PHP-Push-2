@@ -7,7 +7,7 @@
 *
 * Created   :   11.04.2011
 *
-* Copyright 2007 - 2012 Zarafa Deutschland GmbH
+* Copyright 2007 - 2013 Zarafa Deutschland GmbH
 *
 * This program is free software: you can redistribute it and/or modify
 * it under the terms of the GNU Affero General Public License, version 3,
@@ -261,8 +261,12 @@ class ASDevice extends StateObject {
         if ($this->useragent != "") {
             // [] = changedate, previous user agent
             $a = $this->useragentHistory;
-            $a[] = array(time(), $this->useragent);
-            $this->useragentHistory = $a;
+
+            // only add if this agent was not seen before
+            if (! in_array(array(true, $this->useragent), $a)) {
+                $a[] = array(time(), $this->useragent);
+                $this->useragentHistory = $a;
+            }
         }
         $this->useragent = $useragent;
         return true;

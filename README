@@ -8,3 +8,6 @@ Requirements: libawl-php
 
 Contacts - LDAP
 Requirements: LDAP Server
+
+Contacts - CardDAV
+Requirements: libawl-php

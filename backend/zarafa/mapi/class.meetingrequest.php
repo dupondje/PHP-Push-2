@@ -1,6 +1,6 @@
 <?php
 /*
- * Copyright 2005 - 2012  Zarafa B.V.
+ * Copyright 2005 - 2013  Zarafa B.V.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License, version 3,
@@ -939,6 +939,13 @@ If it is the first time this attendee has proposed a new date/time, increment th
                         } else {
                             $props[$this->proptags['busystatus']] = $tentative ? fbTentative : fbBusy;
                         }
+
+                        // ZP-341 - we need to copy as well the attachments
+                        // Copy attachments too
+                        $this->replaceAttachments($this->message, $new);
+                        // Copy recipients too
+                        $this->replaceRecipients($this->message, $new, $isDelegate);
+                        // ZP-341 - end
 
                         if($userAction) {
                             // if user has responded then set replytime

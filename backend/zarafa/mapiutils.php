@@ -6,7 +6,7 @@
 *
 * Created   :   14.02.2011
 *
-* Copyright 2007 - 2012 Zarafa Deutschland GmbH
+* Copyright 2007 - 2013 Zarafa Deutschland GmbH
 *
 * This program is free software: you can redistribute it and/or modify
 * it under the terms of the GNU Affero General Public License, version 3,
@@ -203,14 +203,97 @@ class MAPIUtils {
                             array(
                                 array(RES_CONTENT, array(FUZZYLEVEL => FL_SUBSTRING | FL_IGNORECASE, ULPROPTAG => PR_DISPLAY_NAME, VALUE => $query)),
                                 array(RES_CONTENT, array(FUZZYLEVEL => FL_SUBSTRING | FL_IGNORECASE, ULPROPTAG => PR_ACCOUNT, VALUE => $query)),
+                                array(RES_CONTENT, array(FUZZYLEVEL => FL_SUBSTRING | FL_IGNORECASE, ULPROPTAG => PR_SMTP_ADDRESS, VALUE => $query)),
                             ), // RES_OR
                         ),
-                        array(
-                            RES_PROPERTY,
-                            array(RELOP => RELOP_EQ, ULPROPTAG => PR_OBJECT_TYPE, VALUE => MAPI_MAILUSER)
-                        )
+                        array(RES_OR,
+                            array (
+                                array(
+                                        RES_PROPERTY,
+                                        array(RELOP => RELOP_EQ, ULPROPTAG => PR_OBJECT_TYPE, VALUE => MAPI_MAILUSER)
+                                ),
+                                array(
+                                        RES_PROPERTY,
+                                        array(RELOP => RELOP_EQ, ULPROPTAG => PR_OBJECT_TYPE, VALUE => MAPI_DISTLIST)
+                                )
+                            )
+                        ) // RES_OR
                     ) // RES_AND
         );
+    }
+
+    /**
+     * Create a MAPI restriction for a certain email address
+     *
+     * @access public
+     *
+     * @param MAPIStore  $store         the MAPI store
+     * @param string     $query         email address
+     *
+     * @return array
+     */
+    public static function GetEmailAddressRestriction($store, $email) {
+        $props = MAPIMapping::GetContactProperties();
+        $props = getPropIdsFromStrings($store, $props);
+
+        return array(RES_OR,
+                    array(
+                        array(  RES_PROPERTY,
+                                array(  RELOP => RELOP_EQ,
+                                        ULPROPTAG => $props['emailaddress1'],
+                                        VALUE => array($props['emailaddress1'] => $email),
+                                ),
+                        ),
+                        array(  RES_PROPERTY,
+                                array(  RELOP => RELOP_EQ,
+                                        ULPROPTAG => $props['emailaddress2'],
+                                        VALUE => array($props['emailaddress2'] => $email),
+                                ),
+                        ),
+                        array(  RES_PROPERTY,
+                                array(  RELOP => RELOP_EQ,
+                                        ULPROPTAG => $props['emailaddress3'],
+                                        VALUE => array($props['emailaddress3'] => $email),
+                                ),
+                        ),
+                ),
+        );
+    }
+
+    /**
+     * Create a MAPI restriction for a certain folder type
+     *
+     * @access public
+     *
+     * @param string     $foldertype    folder type for restriction
+     * @return array
+     */
+    public static function GetFolderTypeRestriction($foldertype) {
+        return array(   RES_PROPERTY,
+                        array(  RELOP => RELOP_EQ,
+                                ULPROPTAG => PR_CONTAINER_CLASS,
+                                VALUE => array(PR_CONTAINER_CLASS => $foldertype)
+                        ),
+                );
+    }
+
+    /**
+     * Returns subfolders of given type for a folder or false if there are none.
+     *
+     * @access public
+     *
+     * @param MAPIFolder $folder
+     * @param string $type
+     *
+     * @return MAPITable|boolean
+     */
+    public static function GetSubfoldersForType($folder, $type) {
+        $subfolders = mapi_folder_gethierarchytable($folder, CONVENIENT_DEPTH);
+        mapi_table_restrict($subfolders, MAPIUtils::GetFolderTypeRestriction($type));
+        if (mapi_table_getrowcount($subfolders) > 0) {
+            return mapi_table_queryallrows($subfolders, array(PR_ENTRYID));
+        }
+        return false;
     }
 
     /**

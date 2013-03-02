@@ -8,7 +8,7 @@
 *
 * Created   :   01.10.2007
 *
-* Copyright 2007 - 2012 Zarafa Deutschland GmbH
+* Copyright 2007 - 2013 Zarafa Deutschland GmbH
 *
 * This program is free software: you can redistribute it and/or modify
 * it under the terms of the GNU Affero General Public License, version 3,
@@ -107,6 +107,13 @@ include_once('lib/syncobjects/syncdevicepassword.php');
 include_once('lib/syncobjects/syncitemoperationsattachment.php');
 include_once('lib/syncobjects/syncsendmail.php');
 include_once('lib/syncobjects/syncsendmailsource.php');
+include_once('lib/syncobjects/syncvalidatecert.php');
+include_once('lib/syncobjects/syncresolverecipients.php');
+include_once('lib/syncobjects/syncresolverecipient.php');
+include_once('lib/syncobjects/syncresolverecipientsoptions.php');
+include_once('lib/syncobjects/syncresolverecipientsavailability.php');
+include_once('lib/syncobjects/syncresolverecipientscertificates.php');
+include_once('lib/syncobjects/syncresolverecipientspicture.php');
 include_once('lib/default/backend.php');
 include_once('lib/default/searchprovider.php');
 include_once('lib/request/request.php');

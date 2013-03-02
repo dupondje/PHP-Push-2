@@ -6,7 +6,7 @@
 *
 * Created   :   29.04.2011
 *
-* Copyright 2007 - 2012 Zarafa Deutschland GmbH
+* Copyright 2007 - 2013 Zarafa Deutschland GmbH
 *
 * This program is free software: you can redistribute it and/or modify
 * it under the terms of the GNU Affero General Public License, version 3,
@@ -184,6 +184,8 @@ class MAPIMapping {
             // "threadtopic"        => PR_CONVERSATION_TOPIC,
             "internetcpid"          => PR_INTERNET_CPID,
             "nativebodytype"        => PR_NATIVE_BODY_INFO,
+            "lastverbexecuted"      => PR_LAST_VERB_EXECUTED,
+            "lastverbexectime"      => PR_LAST_VERB_EXECUTION_TIME,
             );
     }
 
@@ -395,6 +397,7 @@ class MAPIMapping {
             "completion"            => "PT_DOUBLE:PSETID_Task:0x8102",
             "status"                => "PT_LONG:PSETID_Task:0x8101",
             "icon"                  => PR_ICON_INDEX,
+            "owner"                 => "PT_STRING8:PSETID_Task:0x811F",
         );
     }
 

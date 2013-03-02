@@ -10,7 +10,7 @@
 *
 * Created   :   11.04.2011
 *
-* Copyright 2007 - 2012 Zarafa Deutschland GmbH
+* Copyright 2007 - 2013 Zarafa Deutschland GmbH
 *
 * This program is free software: you can redistribute it and/or modify
 * it under the terms of the GNU Affero General Public License, version 3,
@@ -604,6 +604,19 @@ class DeviceManager {
      */
     public function AnnounceProcessStatus($folderid, $status) {
         return $this->loopdetection->ProcessLoopDetectionAddStatus($folderid, $status);
+    }
+
+    /**
+     * Announces that the current process is a push connection to the process loop
+     * detection and to the Top collector
+     *
+     * @access public
+     * @return boolean
+     */
+    public function AnnounceProcessAsPush() {
+        ZLog::Write(LOGLEVEL_DEBUG, "Announce process as PUSH connection");
+
+        return $this->loopdetection->ProcessLoopDetectionSetAsPush() && ZPush::GetTopCollector()->SetAsPushConnection();
     }
 
     /**

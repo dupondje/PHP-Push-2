@@ -5,7 +5,7 @@
  * @link https://github.com/nuovo/vCard-parser
  * @author Martins Pilsetnieks, Roberts Bruveris
  * @see RFC 2426, RFC 2425
- * @version 0.4.7
+ * @version 0.4.8
 */
 	class vCard implements Countable, Iterator
 	{
@@ -134,9 +134,10 @@
 				{
 					// Prepending "BEGIN:VCARD" to the raw string because we exploded on that one.
 					// If there won't be the BEGIN marker in the new object, it will fail.
-
 					$SinglevCardRawData = 'BEGIN:VCARD'."\n".$SinglevCardRawData;
-					$this -> Data[] = new vCard(false, $SinglevCardRawData);
+
+					$ClassName = get_class($this);
+					$this -> Data[] = new $ClassName(false, $SinglevCardRawData);
 				}
 			}
 			else
@@ -181,7 +182,8 @@
 
 					if ((strpos($Key, 'agent') === 0) && (stripos($Value, 'begin:vcard') !== false))
 					{
-						$Value = new vCard(false, str_replace('-wrap-', "\n", $Value));
+						$ClassName = get_class($this);
+						$Value = new $ClassName(false, str_replace('-wrap-', "\n", $Value));
 						if (!isset($this -> Data[$Key]))
 						{
 							$this -> Data[$Key] = array();
@@ -238,6 +240,18 @@
 									$Type = $ParamValue;
 									break;
 							}
+						}
+					}
+
+					// Checking files for colon-separated additional parameters (Apple's Address Book does this), for example, "X-ABCROP-RECTANGLE" for photos
+					if (in_array($Key, self::$Spec_FileElements) && isset($Parameters['encoding']) && in_array($Parameters['encoding'], array('b', 'base64')))
+					{
+						// If colon is present in the value, it must contain Address Book parameters
+						//	(colon is an invalid character for base64 so it shouldn't appear in valid files)
+						if (strpos($Value, ':') !== false)
+						{
+							$Value = explode(':', $Value);
+							$Value = array_pop($Value);
 						}
 					}
 
@@ -672,36 +686,28 @@
 			return key($this -> Data);
 		}
 
-		/**
-		* Magic method for easier access to vcard
-		*
-		* @return vCard object
-		*/
-		public function access()
-		{
-			foreach ($this as $key => $value) 
-			{
-				if ($key == "tel" || $key == "url" ||  $key == "email" || $key == "photo") 
-				{
-					for ($i=0;$i<sizeof($value); $i++) 
-					{
-						$card[$key][$value[$i]['Type'][0]] = $value[$i]['Value'];
-					}
-				} 
-				elseif ($key == "adr" ) 
-				{
-					for ($i=0;$i<sizeof($value); $i++) 
-					{
-						$card[$key][$value[$i]['Type'][0]] = $value[$i];
-					}
-				} 
-				else 
-				{
-					$card[$key] = $value[0];
-				}
-			}
+                /**
+                 * Magic method for easier access to vcard
+                 *
+                 * @return vCard object
+                 */
+                public function access()
+                {
+                        foreach ($this as $key => $value) {
+                                if ($key == "tel" || $key == "url" ||  $key == "email" || $key == "photo") {
+                                        for ($i=0;$i<sizeof($value); $i++) {
+                                                $card[$key][$value[$i]['Type'][0]] = $value[$i]['Value'];
+                                       }
+                                } elseif ($key == "adr" ) {
+                                        for ($i=0;$i<sizeof($value); $i++) {
+                                                $card[$key][$value[$i]['Type'][0]] = $value[$i];
+                                        }
+                                } else {
+                                        $card[$key] = $value[0];
+                                }
+                        }
+                        return $card;
+                }
 
-			return $card;
-		}
 	}
 ?>

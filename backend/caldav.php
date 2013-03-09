@@ -660,6 +660,19 @@ class BackendCalDAV extends BackendDiff {
 					$days = explode(",", $rule[1]);
 					foreach ($days as $day)
 					{
+						if ($recurrence->type == "2")
+						{
+							if (strlen($day)>2)
+							{
+								$recurrence->weekofmonth = intval($day);
+								$day = substr($day,-2);
+							}
+							else
+							{
+								$recurrence->weekofmonth = 1;	
+							}
+							$recurrence->type = "3";
+						}
 						switch ($day)
 						{
 							//   1 = Sunday
@@ -933,6 +946,7 @@ class BackendCalDAV extends BackendDiff {
 					$freq = "WEEKLY";
 					break;
 				case "2":
+				case "3":
 					$freq = "MONTHLY";
 					break;
 				case "5":
@@ -955,34 +969,88 @@ class BackendCalDAV extends BackendDiff {
 		}
 		if (isset($rec->dayofweek))
 		{
+			$week = '';
+			if (isset($rec->weekofmonth))
+			{
+				$week = $rec->weekofmonth;
+			}
 			$days = array();
 			if (($rec->dayofweek & 1) == 1)
 			{
-				$days[] = "SU";
+				if (empty($week))
+				{
+					$days[] = "SU";
+				}
+				else
+				{
+					$days[] = $week . "SU";	
+				}
 			}
 			if (($rec->dayofweek & 2) == 2)
 			{
-				$days[] = "MO";
+				if (empty($week))
+				{
+					$days[] = "MO";
+				}
+				else
+				{
+					$days[] = $week . "MO";	
+				}
 			}
 			if (($rec->dayofweek & 4) == 4)
 			{
-				$days[] = "TU";
+				if (empty($week))
+				{
+					$days[] = "TU";
+				}
+				else
+				{
+					$days[] = $week . "TU";
+				}
 			}
 			if (($rec->dayofweek & 8) == 8)
 			{
-				$days[] = "WE";
+				if (empty($week))
+				{
+					$days[] = "WE";
+				}
+				else
+				{
+					$days[] = $week . "WE";
+				}
 			}
 			if (($rec->dayofweek & 16) == 16)
 			{
-				$days[] = "TH";
+				if (empty($week))
+				{
+					$days[] = "TH";
+				}
+				else
+				{
+					$days[] = $week . "TH";
+				}
 			}
 			if (($rec->dayofweek & 32) == 32)
 			{
-				$days[] = "FR";
+				if (empty($week))
+				{
+					$days[] = "FR";
+				}
+				else
+				{
+					$days[] = $week . "FR";
+				}
 			}
 			if (($rec->dayofweek & 64) == 64)
 			{
-				$days[] = "SA";
+				if (empty($week))
+				{
+					$days[] = "SA";
+				}
+				else
+				{
+					$days[] = $week . "SA";
+				}
 			}
 			$rrule[] = "BYDAY=" . implode(",", $days);
 		}

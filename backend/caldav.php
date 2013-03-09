@@ -660,6 +660,19 @@ class BackendCalDAV extends BackendDiff {
 					$days = explode(",", $rule[1]);
 					foreach ($days as $day)
 					{
+						if ($recurrence->type == "2")
+						{
+							if (strlen($day)>2)
+							{
+								$recurrence->weekofmonth = intval($day);
+								$day = substr($day,-2);
+							}
+							else
+							{
+								$recurrence->weekofmonth = 1;	
+							}
+							$recurrence->type = "3";
+						}
 						switch ($day)
 						{
 							//   1 = Sunday

@@ -83,8 +83,8 @@
     define('LOGFILEDIR', '/var/log/z-push/');
     define('LOGFILE', LOGFILEDIR . 'z-push.log');
     define('LOGERRORFILE', LOGFILEDIR . 'z-push-error.log');
-    define('LOGLEVEL', LOGLEVEL_INFO);
-    define('LOGAUTHFAIL', false);
+    define('LOGLEVEL', LOGLEVEL_DEBUG);
+    define('LOGAUTHFAIL', true);
 
 
     // To save e.g. WBXML data only for selected users, add the usernames to the array
@@ -161,6 +161,31 @@
     // Z-Push will use the lowest value, either set here or by the mobile.
     // default: 100 - value used if mobile does not limit amount of items
     define('SYNC_MAX_ITEMS', 100);
+    
+    // Require Certificate DN Match to Username
+    //
+    // If enabled, additional checks are performed:
+    // - Validity SSL_CLIENT_V_START <= time() <= SSL_CLIENT_V_END
+    // - Certificate Issuer (Optional: See SYNC_REQUIRE_CLIENT_CRT_ISSUER)
+    // Example: (string) 'SSL_CLIENT_S_DN_UID'
+    // Disable: (bool) false
+    //define('SYNC_REQUIRE_CLIENT_CRT_USERNAME_IN', 'SSL_CLIENT_S_DN_CN');
+    define('SYNC_REQUIRE_CLIENT_CRT_USERNAME_IN', false);
+    
+    // Require Client Certificate Issuer DN (aka Subject) (SSL_CLIENT_I_DN) to match a specific DN
+    //
+    // This isn't really necessary, as the Webserver already needs to trust
+    // the signing CA.
+    // Anyway, an attacker could have signed a client certificate by another
+    // trusted CA and that can't possibly be distinguished.
+    //
+    // If defined, SYNC_REQUIRE_CRT_USERNAME_IN will only pass if
+    // the Issuer of the Client Cert matches the given Issuer String
+    // Example: (string) '/C=DE/ST=Berlin/L=Berlin/O=My Lovely Own CA/OU=Testing (CA-OU)/CN=my-lovely-own-ca.example.org/emailAddress=s.seitz@heinlein-support.de'
+    // Disable: (bool) false
+    //define('SYNC_REQUIRE_CLIENT_CRT_ISSUER', '/C=DE/ST=Berlin/L=Berlin/O=My Lovely Own CA/OU=Testing (CA-OU)/CN=my-lovely-own-ca.example.org/emailAddress=s.seitz@heinlein-support.de');
+    define('SYNC_REQUIRE_CLIENT_CRT_ISSUER', false);
+
 
 /**********************************************************************************
  *  Backend settings

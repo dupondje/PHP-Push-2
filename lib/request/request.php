@@ -91,10 +91,12 @@ class Request {
     static private $attachmentName;
     static private $collectionId;
     static private $itemId;
-    static private $longId; //TODO
-    static private $occurence; //TODO
+    static private $longId; //@TODO
+    static private $occurence; //@TODO
     static private $saveInSent;
     static private $acceptMultipart;
+    static private $authClientCrtDN;
+    static private $authClientCrtIssuer;
 
 
     /**
@@ -133,7 +135,7 @@ class Request {
         // TODO check IPv6 addresses
         if(isset($_SERVER["REMOTE_ADDR"]))
             self::$remoteAddr = self::filterEvilInput($_SERVER["REMOTE_ADDR"], self::NUMBERSDOT_ONLY);
-
+        
         // in protocol version > 14 mobile send these inputs as encoded query string
         if (!isset(self::$command) && !empty($_SERVER['QUERY_STRING']) && Utils::IsBase64String($_SERVER['QUERY_STRING'])) {
             $query = Utils::DecodeBase64URI($_SERVER['QUERY_STRING']);
@@ -226,10 +228,104 @@ class Request {
             self::$authPassword = (isset($_SERVER['PHP_AUTH_PW']))?$_SERVER['PHP_AUTH_PW'] : "";
         }
         // authUser & authPassword are unfiltered!
-        return (self::$authUser != "" && self::$authPassword != "");
+        // added the check for Client CRT Authentication
+        return (self::$authUser != "" && self::$authPassword != "" && self::isClientCertAuth(self::$authUser) === true);
     }
 
+	/**
+	 * Checks against if Client Certificate (and optionally)
+	 * Issuer Name is configured and matches.
+	 * 
+	 * @access public
+	 * @param string		Username to authenticate
+	 * @return boolean		true if disabled or ( enabled and matched ).
+	 */
+    static public function isClientCertAuth($authUser = '') {
+    	$disableAuth = false;
+    	$authUserMatch = '';
+    	ZLog::Write(LOGLEVEL_DEBUG, sprintf("Request::isClientCertAuth() triggered."));
+    	if ($authUser == '') {
+    		ZLog::Write(LOGLEVEL_WARN, sprintf("Request::isClientCertAuth() No valid authUser given. Disabling CRT checked login."));
+    		$disableAuth = true;
+    	}
+    	// set self::$authClientCrtDN
+    	if ( (defined('SYNC_REQUIRE_CLIENT_CRT_USERNAME_IN') &&
+    		  SYNC_REQUIRE_CLIENT_CRT_USERNAME_IN === false) ||
+    		  (!defined('SYNC_REQUIRE_CLIENT_CRT_USERNAME_IN')) ) {
+    		self::$authClientCrtDN = false;
+    		ZLog::Write(LOGLEVEL_DEBUG, sprintf("Request::isClientCertAuth() SYNC_REQUIRE_CRT_USERNAME_IN disabled or not set."));
+    		return true;
+    	} elseif (defined('SYNC_REQUIRE_CLIENT_CRT_USERNAME_IN') &&
+    		  SYNC_REQUIRE_CLIENT_CRT_USERNAME_IN !== false) {
+    		self::$authClientCrtDN = SYNC_REQUIRE_CLIENT_CRT_USERNAME_IN;
+    		ZLog::Write(LOGLEVEL_DEBUG, sprintf("Request::isClientCertAuth() SYNC_REQUIRE_CRT_USERNAME_IN set to %s", self::$authClientCrtDN));
+    		if (isset($_SERVER[self::$authClientCrtDN])) {
+    			$authUserMatch = $_SERVER[self::$authClientCrtDN];
+    		} else {
+    			self::$authClientCrtDN = false;
+    			ZLog::Write(LOGLEVEL_DEBUG, sprintf("Request::isClientCertAuth() %s is no valid SERVER key. Disabling CRT checked login.", self::$authClientCrtDN));
+    			$disableAuth = true;
+    		}
+    	}
+    	// set self::$authClientCrtIssuer
+    	if (self::$authClientCrtDN !== false) {
+    		if ( (defined('SYNC_REQUIRE_CLIENT_CRT_ISSUER') &&
+    				SYNC_REQUIRE_CLIENT_CRT_ISSUER === false) ||
+    				(!defined('SYNC_REQUIRE_CLIENT_CRT_ISSUER')) ) {
+    			self::$authClientCrtIssuer = false;
+    			ZLog::Write(LOGLEVEL_DEBUG, sprintf("Request::isClientCertAuth() SYNC_REQUIRE_CLIENT_CRT_ISSUER disabled or not set."));
+    		} elseif (defined('SYNC_REQUIRE_CLIENT_CRT_ISSUER') &&
+    				SYNC_REQUIRE_CLIENT_CRT_ISSUER !== false) {
+    			self::$authClientCrtIssuer = SYNC_REQUIRE_CLIENT_CRT_ISSUER;
+    			ZLog::Write(LOGLEVEL_DEBUG, sprintf("Request::isClientCertAuth() SYNC_REQUIRE_CLIENT_CRT_ISSUER set to %s", self::$authClientCrtIssuer));
+    		}
+    	} else {
+    		self::$authClientCrtIssuer = false;
+    		ZLog::Write(LOGLEVEL_DEBUG, sprintf("Request::isClientCertAuth() SYNC_REQUIRE_CLIENT_CRT_ISSUER disabled due to disabled SYNC_REQUIRE_CRT_USERNAME_IN."));
+    	}
+    	
+    	// Data collected, now check against validity!
+    	
+    	if ( ($disableAuth !== false) || ($authUserMatch == '') ) {
+    		ZLog::Write(LOGLEVEL_INFO, sprintf("Request::isClientCertAuth() Authentication disabled or Client CRT DN found at %s is empty.", self::$authClientCrtDN));
+    		return false;
+    	}
+    	
+    	// Check the Login Username against the Client CRT Part configured in SYNC_REQUIRE_CLIENT_CRT_USERNAME_IN
+    	if ($authUserMatch != $authUser) {
+    		ZLog::Write(LOGLEVEL_INFO, sprintf("Request::isClientCertAuth() Client CRT %s (%s) does not match Username %s", $authUserMatch, self::$authClientCrtDN, $authUser));
+    		return false;
+    	}
+    	
+    	// Check Client CRT Validity
+    	$now = time();
+    	$clientCRTvalidFrom = isset($_SERVER['SSL_CLIENT_V_START']) ? strtotime($_SERVER['SSL_CLIENT_V_START']) : $now+1; // If unset, invalidate
+    	$clientCRTvalidUntil = isset($_SERVER['SSL_CLIENT_V_END']) ? strtotime($_SERVER['SSL_CLIENT_V_END']) : $now-1; // If unset, invalidate
+    	if ( ($clientCRTvalidFrom > $now) || ($clientCRTvalidUntil < $now) ) {
+    		ZLog::Write(LOGLEVEL_INFO, sprintf("Request::isClientCertAuth() Client CRT invalid. (Valid from %s until %s. Now: %s)", strftime('%x %X', $clientCRTvalidFrom), strftime('%x %X', $clientCRTvalidUntil),strftime('%x %X', $now)));
+    		return false;
+    	} 	
 
+    	// Check Client CRT Issuer DN against a preconfigured DN string
+    	if (self::$authClientCrtIssuer !== false) {
+    			// Paranoia
+    			if (!isset($_SERVER['SSL_CLIENT_I_DN'])) {
+    				ZLog::Write(LOGLEVEL_ERROR, sprintf("Request::isClientCertAuth() SYNC_REQUIRE_CLIENT_CRT_ISSUER is required, but the server doesn't offer SSL_CLIENT_I_DN. Woohoo... Disabling CRT checked login."));
+    				return false;
+    			}
+    			if (self::$authClientCrtDN != $_SERVER['SSL_CLIENT_I_DN']) {
+    				ZLog::Write(LOGLEVEL_ERROR, sprintf("Request::isClientCertAuth() SYNC_REQUIRE_CLIENT_CRT_ISSUER is required but does not match SSL_CLIENT_I_DN. Disabling CRT checked login."));
+    				return false;
+    			}	
+    	}
+    	
+    	// Finally, every check has been successfully performed.
+    	// Grant access (at least for the Certificate, which does not necesserily mean the user is able to login) 
+    	ZLog::Write(LOGLEVEL_ERROR, sprintf("Request::isClientCertAuth() Client CRT authentication granted for user %s .", $authUser));
+		return true;
+    }
+    
+    
     /**----------------------------------------------------------------------------------------------------------
      * Getter & Checker
      */
